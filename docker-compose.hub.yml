@@ -12,10 +12,13 @@ services:
       context: ./frontend
       args:
         - VITE_HUB_URL=${HUB_URL:-http://localhost:8080}
+    ports: !override []
     networks:
       - default
-      - hub_satellite_net
+      - hub_proxy_net
 
 networks:
   hub_satellite_net:
+    external: true
+  hub_proxy_net:
     external: true
