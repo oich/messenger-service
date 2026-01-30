@@ -1,0 +1,21 @@
+services:
+  backend:
+    environment:
+      - HUB_SECRET_KEY=${HUB_SECRET_KEY:-hub-dev-secret-change-me}
+      - MESSENGER_SERVICE_TOKEN=${MESSENGER_SERVICE_TOKEN:-messenger-service-token-dev}
+    networks:
+      - default
+      - hub_satellite_net
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_HUB_URL=${HUB_URL:-http://localhost:8080}
+    networks:
+      - default
+      - hub_satellite_net
+
+networks:
+  hub_satellite_net:
+    external: true

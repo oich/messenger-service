@@ -1,0 +1,61 @@
+services:
+  conduit:
+    image: matrixconduit/matrix-conduit:latest
+    volumes:
+      - conduit_data:/var/lib/conduit
+      - ./conduit/conduit.toml:/etc/conduit/conduit.toml:ro
+    environment:
+      - CONDUIT_CONFIG=/etc/conduit/conduit.toml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6167/_matrix/client/versions"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=messenger
+      - POSTGRES_PASSWORD=messenger
+      - POSTGRES_DB=messenger
+    volumes:
+      - messenger_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U messenger"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    ports:
+      - "8005:8000"
+    environment:
+      - DATABASE_URL=postgresql://messenger:messenger@db:5432/messenger
+      - SECRET_KEY=${SECRET_KEY:-messenger-dev-secret}
+      - MATRIX_HOMESERVER_URL=http://conduit:6167
+      - MATRIX_SERVER_NAME=hub.local
+      - MATRIX_ADMIN_USER=@admin:hub.local
+      - MATRIX_ADMIN_PASSWORD=${MATRIX_ADMIN_PASSWORD:-admin-secret}
+      - MESSENGER_SERVICE_TOKEN=${MESSENGER_SERVICE_TOKEN:-messenger-service-token-dev}
+    depends_on:
+      db:
+        condition: service_healthy
+      conduit:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8085:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  conduit_data:
+  messenger_db_data:

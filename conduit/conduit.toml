@@ -1,0 +1,28 @@
+[global]
+# Server name used in Matrix user IDs: @user:hub.local
+server_name = "hub.local"
+
+# Database backend (rocksdb is the default, embedded)
+database_backend = "rocksdb"
+database_path = "/var/lib/conduit/"
+
+# Listening port
+port = 6167
+
+# Max request size (20 MB)
+max_request_size = 20_000_000
+
+# Allow registration (needed for user provisioning by messenger-service)
+allow_registration = true
+
+# Allow federation (disabled for Phase 1, enable in Phase 4)
+allow_federation = false
+
+# Trusted servers for key verification
+trusted_servers = ["matrix.org"]
+
+# Logging
+log = "warn,rocket=off,_=off,sled=off"
+
+# Address to bind to
+address = "0.0.0.0"

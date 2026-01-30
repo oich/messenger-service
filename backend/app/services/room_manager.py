@@ -1,0 +1,187 @@
+"""Manage Matrix rooms: tenant spaces, entity rooms, DMs."""
+
+import logging
+from typing import Optional
+
+from sqlalchemy.orm import Session
+
+from app.config import MATRIX_SERVER_NAME
+from app.models import RoomMapping, RoomType, UserMapping
+from app.services.matrix_client import matrix_client, MatrixClientError
+
+logger = logging.getLogger("room_manager")
+
+
+async def get_or_create_general_room(
+    tenant_id: int,
+    admin_token: str,
+    db: Session,
+) -> RoomMapping:
+    """Get or create the tenant's general chat room."""
+    mapping = (
+        db.query(RoomMapping)
+        .filter(
+            RoomMapping.tenant_id == tenant_id,
+            RoomMapping.room_type == RoomType.general,
+        )
+        .first()
+    )
+    if mapping:
+        return mapping
+
+    room_id = await matrix_client.create_room(
+        access_token=admin_token,
+        name="Allgemein",
+        topic="Allgemeiner Chat-Kanal",
+        preset="public_chat",
+    )
+
+    mapping = RoomMapping(
+        matrix_room_id=room_id,
+        room_type=RoomType.general,
+        display_name="Allgemein",
+        tenant_id=tenant_id,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
+async def get_or_create_entity_room(
+    entity_type: str,
+    entity_id: int,
+    display_name: str,
+    admin_token: str,
+    db: Session,
+    tenant_id: Optional[int] = None,
+) -> RoomMapping:
+    """Get or create a room for a specific entity (machine, project, etc.)."""
+    mapping = (
+        db.query(RoomMapping)
+        .filter(
+            RoomMapping.entity_type == entity_type,
+            RoomMapping.entity_id == entity_id,
+            RoomMapping.room_type == RoomType.entity,
+        )
+        .first()
+    )
+    if mapping:
+        return mapping
+
+    room_id = await matrix_client.create_room(
+        access_token=admin_token,
+        name=display_name,
+        topic=f"{entity_type} #{entity_id}",
+        preset="private_chat",
+    )
+
+    mapping = RoomMapping(
+        matrix_room_id=room_id,
+        room_type=RoomType.entity,
+        display_name=display_name,
+        tenant_id=tenant_id,
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
+async def get_or_create_dm_room(
+    user1_mapping: UserMapping,
+    user2_mapping: UserMapping,
+    user1_token: str,
+    db: Session,
+) -> RoomMapping:
+    """Get or create a DM room between two users."""
+    # Check both directions
+    pair_key_1 = f"dm:{user1_mapping.matrix_user_id}:{user2_mapping.matrix_user_id}"
+    pair_key_2 = f"dm:{user2_mapping.matrix_user_id}:{user1_mapping.matrix_user_id}"
+
+    mapping = (
+        db.query(RoomMapping)
+        .filter(
+            RoomMapping.room_type == RoomType.dm,
+            RoomMapping.display_name.in_([pair_key_1, pair_key_2]),
+        )
+        .first()
+    )
+    if mapping:
+        return mapping
+
+    room_id = await matrix_client.create_room(
+        access_token=user1_token,
+        name=f"DM: {user1_mapping.display_name} & {user2_mapping.display_name}",
+        invite=[user2_mapping.matrix_user_id],
+        is_direct=True,
+    )
+
+    mapping = RoomMapping(
+        matrix_room_id=room_id,
+        room_type=RoomType.dm,
+        display_name=pair_key_1,
+        tenant_id=user1_mapping.tenant_id,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
+async def create_custom_room(
+    name: str,
+    topic: Optional[str],
+    creator_token: str,
+    invite_user_ids: Optional[list[str]],
+    tenant_id: Optional[int],
+    db: Session,
+) -> RoomMapping:
+    """Create a custom room."""
+    room_id = await matrix_client.create_room(
+        access_token=creator_token,
+        name=name,
+        topic=topic,
+        invite=invite_user_ids,
+        preset="private_chat",
+    )
+
+    mapping = RoomMapping(
+        matrix_room_id=room_id,
+        room_type=RoomType.general,
+        display_name=name,
+        tenant_id=tenant_id,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
+async def ensure_user_in_room(
+    user_mapping: UserMapping,
+    room_mapping: RoomMapping,
+    admin_token: str,
+) -> None:
+    """Ensure a user is in a room (invite + auto-join)."""
+    try:
+        await matrix_client.invite_user(
+            admin_token, room_mapping.matrix_room_id, user_mapping.matrix_user_id
+        )
+    except MatrixClientError:
+        pass  # May already be invited or joined
+
+    if user_mapping.matrix_access_token_encrypted:
+        try:
+            await matrix_client.join_room(
+                user_mapping.matrix_access_token_encrypted,
+                room_mapping.matrix_room_id,
+            )
+        except MatrixClientError:
+            logger.warning(
+                "User %s could not join room %s",
+                user_mapping.matrix_user_id,
+                room_mapping.matrix_room_id,
+            )
