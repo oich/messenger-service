@@ -3,6 +3,14 @@
     <div class="room-list-header">
       <h3>Raeume</h3>
       <Button
+        icon="pi pi-user"
+        text
+        rounded
+        size="small"
+        @click="$emit('start-dm')"
+        v-tooltip="'Direktnachricht'"
+      />
+      <Button
         icon="pi pi-plus"
         text
         rounded
@@ -41,7 +49,7 @@ defineProps({
   currentRoomId: { type: String, default: null },
 })
 
-defineEmits(['select', 'create'])
+defineEmits(['select', 'create', 'start-dm'])
 
 function roomIcon(room) {
   switch (room.room_type) {

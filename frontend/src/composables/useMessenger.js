@@ -79,6 +79,32 @@ export function useMessenger() {
     }
   }
 
+  async function fetchUsers(query = null) {
+    try {
+      const params = {}
+      if (query) params.q = query
+      const { data } = await api.get('/api/v1/users', { params })
+      return data
+    } catch (err) {
+      console.error('Failed to fetch users:', err)
+      return []
+    }
+  }
+
+  async function createDM(targetUserId) {
+    try {
+      const { data } = await api.post(`/api/v1/rooms/dm/${encodeURIComponent(targetUserId)}`)
+      const exists = rooms.value.some(r => r.matrix_room_id === data.matrix_room_id)
+      if (!exists) {
+        rooms.value.push(data)
+      }
+      return data
+    } catch (err) {
+      console.error('Failed to create DM:', err)
+      throw err
+    }
+  }
+
   async function joinRoom(roomId) {
     try {
       await api.post(`/api/v1/rooms/${encodeURIComponent(roomId)}/join`)
@@ -114,6 +140,8 @@ export function useMessenger() {
     selectRoom,
     sendMessage,
     createRoom,
+    createDM,
+    fetchUsers,
     joinRoom,
     loadMoreMessages,
     addIncomingMessage,

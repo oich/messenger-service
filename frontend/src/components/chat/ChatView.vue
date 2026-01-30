@@ -5,6 +5,7 @@
       :currentRoomId="currentRoomId"
       @select="selectRoom"
       @create="showCreateRoom = true"
+      @start-dm="openDmDialog"
     />
     <div class="chat-main">
       <div v-if="currentRoom" class="chat-header">
@@ -49,6 +50,42 @@
         <Button label="Erstellen" @click="handleCreateRoom" :disabled="!newRoomName.trim()" />
       </template>
     </Dialog>
+
+    <Dialog
+      v-model:visible="showDmDialog"
+      header="Direktnachricht"
+      modal
+      :style="{ width: '400px' }"
+    >
+      <div class="flex flex-column gap-3">
+        <div class="flex flex-column gap-1">
+          <label>Nutzer suchen</label>
+          <InputText v-model="dmSearch" placeholder="Name eingeben..." @input="onDmSearch" />
+        </div>
+        <div class="dm-user-list">
+          <div
+            v-for="user in dmUsers"
+            :key="user.hub_user_id"
+            class="dm-user-item"
+            :class="{ selected: dmSelectedUser?.hub_user_id === user.hub_user_id }"
+            @click="dmSelectedUser = user"
+          >
+            <i class="pi pi-user"></i>
+            <span>{{ user.display_name || user.hub_user_id }}</span>
+          </div>
+          <div v-if="dmUsers.length === 0 && !dmLoading" class="dm-empty">
+            Keine Nutzer gefunden
+          </div>
+          <div v-if="dmLoading" class="dm-empty">
+            Laden...
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Abbrechen" severity="secondary" @click="showDmDialog = false" />
+        <Button label="Nachricht senden" @click="handleStartDm" :disabled="!dmSelectedUser" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -78,6 +115,8 @@ const {
   selectRoom,
   sendMessage,
   createRoom,
+  createDM,
+  fetchUsers,
   loadMoreMessages,
   addIncomingMessage,
 } = useMessenger()
@@ -85,6 +124,13 @@ const {
 const showCreateRoom = ref(false)
 const newRoomName = ref('')
 const newRoomTopic = ref('')
+
+const showDmDialog = ref(false)
+const dmSearch = ref('')
+const dmUsers = ref([])
+const dmSelectedUser = ref(null)
+const dmLoading = ref(false)
+let dmSearchTimeout = null
 
 const { connect } = useSSE((event) => {
   if (event.type === 'new_message') {
@@ -125,6 +171,35 @@ async function handleCreateRoom() {
     selectRoom(room.matrix_room_id)
   } catch {
     toast.add({ severity: 'error', summary: 'Fehler', detail: 'Raum konnte nicht erstellt werden', life: 3000 })
+  }
+}
+
+async function openDmDialog() {
+  showDmDialog.value = true
+  dmSearch.value = ''
+  dmSelectedUser.value = null
+  dmLoading.value = true
+  dmUsers.value = await fetchUsers()
+  dmLoading.value = false
+}
+
+function onDmSearch() {
+  clearTimeout(dmSearchTimeout)
+  dmSearchTimeout = setTimeout(async () => {
+    dmLoading.value = true
+    dmUsers.value = await fetchUsers(dmSearch.value || null)
+    dmLoading.value = false
+  }, 300)
+}
+
+async function handleStartDm() {
+  if (!dmSelectedUser.value) return
+  try {
+    const room = await createDM(dmSelectedUser.value.hub_user_id)
+    showDmDialog.value = false
+    selectRoom(room.matrix_room_id)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Fehler', detail: 'DM konnte nicht erstellt werden', life: 3000 })
   }
 }
 
@@ -173,5 +248,41 @@ onMounted(async () => {
   background: var(--surface-overlay);
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
+}
+
+.dm-user-list {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+}
+
+.dm-user-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dm-user-item:hover {
+  background: var(--surface-overlay);
+}
+
+.dm-user-item.selected {
+  background: var(--primary-color);
+  color: #fff;
+}
+
+.dm-user-item i {
+  font-size: 0.9rem;
+}
+
+.dm-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-color-secondary);
+  font-size: 0.875rem;
 }
 </style>

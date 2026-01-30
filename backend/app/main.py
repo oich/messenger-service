@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import LOG_LEVEL
 from app.database import engine, SessionLocal, Base
 from app import models
-from app.routers import auth, messages, rooms, notifications, health, sse
+from app.routers import auth, messages, rooms, users, notifications, health, sse
 from app.services.user_provisioning import provision_bot_user
 from app.services.matrix_client import matrix_client
 
@@ -107,6 +107,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(messages.router)
 app.include_router(rooms.router)
+app.include_router(users.router)
 app.include_router(notifications.router)
 app.include_router(sse.router)
 
