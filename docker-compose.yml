@@ -16,12 +16,6 @@ services:
       - CONDUIT_LOG=warn,rocket=off,_=off,sled=off
       - CONDUIT_ADDRESS=0.0.0.0
       - CONDUIT_ALLOW_CHECK_FOR_UPDATES=false
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:6167/_matrix/client/versions || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
     restart: unless-stopped
 
   db:
@@ -55,7 +49,7 @@ services:
       db:
         condition: service_healthy
       conduit:
-        condition: service_healthy
+        condition: service_started
     restart: unless-stopped
 
   frontend:
