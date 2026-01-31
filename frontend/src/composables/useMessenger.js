@@ -70,7 +70,10 @@ export function useMessenger() {
         room_id: currentRoomId.value,
         body: body.trim(),
       })
-      messages.value.push(data)
+      const exists = messages.value.some(m => m.event_id === data.event_id)
+      if (!exists) {
+        messages.value.push(data)
+      }
     } catch (err) {
       console.error('Failed to send message:', err)
       throw err
@@ -87,7 +90,10 @@ export function useMessenger() {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       if (roomId === currentRoomId.value) {
-        messages.value.push(data)
+        const exists = messages.value.some(m => m.event_id === data.event_id)
+        if (!exists) {
+          messages.value.push(data)
+        }
       }
       return data
     } catch (err) {

@@ -175,7 +175,12 @@ async def upload_file(
             content_type=content_type,
             filename=filename,
         )
+        logger.info(
+            "File uploaded: mxc_uri=%s, filename=%s, size=%d, type=%s",
+            mxc_uri, filename, file_size, content_type,
+        )
     except MatrixClientError as e:
+        logger.error("File upload failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to upload file: {e}",
@@ -341,32 +346,63 @@ async def get_media(
     if not auth_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
-    # Validate token (Hub SSO or local JWT)
-    authenticated = False
+    # Resolve the user to get their Matrix access token
+    user_mapping = None
+
     if is_sso_enabled():
         hub_info = validate_hub_token(auth_token)
         if hub_info:
-            authenticated = True
+            user_mapping = await _get_or_create_hub_shadow_user(hub_info, db)
 
-    if not authenticated:
+    if not user_mapping:
         try:
             payload = jose_jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
-            if payload.get("sub"):
-                authenticated = True
+            username = payload.get("sub")
+            if username:
+                user_mapping = (
+                    db.query(UserMapping)
+                    .filter(UserMapping.hub_user_id == username)
+                    .first()
+                )
         except JWTError:
             pass
 
-    if not authenticated:
+    if not user_mapping:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
-    download_url = (
-        f"{MATRIX_HOMESERVER_URL}/_matrix/media/v3/download/{server_name}/{media_id}"
-    )
+    # Use the user's Matrix token for authenticated media download
+    matrix_token = user_mapping.matrix_access_token_encrypted
+
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(download_url)
-            if resp.status_code != 200:
-                raise HTTPException(status_code=resp.status_code, detail="Media not found")
+            # Try authenticated download (newer Matrix API)
+            headers = {"Authorization": f"Bearer {matrix_token}"} if matrix_token else {}
+
+            # Try multiple Matrix media endpoints for compatibility
+            download_urls = [
+                f"{MATRIX_HOMESERVER_URL}/_matrix/media/r0/download/{server_name}/{media_id}",
+                f"{MATRIX_HOMESERVER_URL}/_matrix/media/v3/download/{server_name}/{media_id}",
+                f"{MATRIX_HOMESERVER_URL}/_matrix/client/v1/media/download/{server_name}/{media_id}",
+            ]
+
+            resp = None
+            for url in download_urls:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    break
+                logger.info("Media download attempt %s returned %d", url, resp.status_code)
+
+            if not resp or resp.status_code != 200:
+                logger.warning(
+                    "Media download failed for %s/%s: status=%s",
+                    server_name, media_id,
+                    resp.status_code if resp else "no response",
+                )
+                raise HTTPException(
+                    status_code=resp.status_code if resp else 502,
+                    detail="Media not found",
+                )
+
             content_type = resp.headers.get("content-type", "application/octet-stream")
             return StreamingResponse(
                 iter([resp.content]),
@@ -378,5 +414,6 @@ async def get_media(
                     "Cache-Control": "public, max-age=86400",
                 },
             )
-    except httpx.HTTPError:
+    except httpx.HTTPError as e:
+        logger.error("Media proxy HTTP error: %s", e)
         raise HTTPException(status_code=502, detail="Failed to fetch media")

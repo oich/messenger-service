@@ -210,15 +210,21 @@ class MatrixClient:
             "Content-Type": content_type,
         }
         params = {"filename": filename}
-        resp = await client.post(
-            "/_matrix/media/v3/upload",
-            content=file_data,
-            headers=headers,
-            params=params,
-            timeout=httpx.Timeout(60.0),
-        )
-        if resp.status_code == 200:
-            return resp.json()["content_uri"]
+        # Try v3 first, then r0 for older Conduit versions
+        for media_path in ["/_matrix/media/v3/upload", "/_matrix/media/r0/upload"]:
+            resp = await client.post(
+                media_path,
+                content=file_data,
+                headers=headers,
+                params=params,
+                timeout=httpx.Timeout(60.0),
+            )
+            if resp.status_code == 200:
+                content_uri = resp.json().get("content_uri")
+                logger.info("File uploaded: %s via %s", content_uri, media_path)
+                return content_uri
+            logger.debug("Upload via %s failed: %d %s", media_path, resp.status_code, resp.text[:200])
+
         raise MatrixClientError(f"Upload failed: {resp.status_code} {resp.text}")
 
     async def send_message_event(
