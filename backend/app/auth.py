@@ -29,6 +29,8 @@ async def _get_or_create_hub_shadow_user(hub_info: dict, db: Session) -> models.
         .filter(models.UserMapping.hub_user_id == username)
         .first()
     )
+    mapped_role = map_hub_role(hub_info.get("role", "viewer"))
+
     if mapping is None:
         # No mapping at all – provision on Matrix directly
         try:
@@ -38,6 +40,9 @@ async def _get_or_create_hub_shadow_user(hub_info: dict, db: Session) -> models.
                 tenant_id=hub_info.get("tenant_id"),
                 db=db,
             )
+            mapping.role = mapped_role
+            db.commit()
+            db.refresh(mapping)
         except Exception:
             logger.warning("Matrix provisioning failed for new user %s, creating shadow user", username)
             matrix_user_id = f"@{username}:hub.local"
@@ -46,6 +51,7 @@ async def _get_or_create_hub_shadow_user(hub_info: dict, db: Session) -> models.
                 matrix_user_id=matrix_user_id,
                 tenant_id=hub_info.get("tenant_id"),
                 display_name=hub_info.get("display_name", username),
+                role=mapped_role,
                 is_bot=False,
             )
             db.add(mapping)
@@ -58,6 +64,9 @@ async def _get_or_create_hub_shadow_user(hub_info: dict, db: Session) -> models.
             changed = True
         if hub_info.get("tenant_id") and mapping.tenant_id != hub_info["tenant_id"]:
             mapping.tenant_id = hub_info["tenant_id"]
+            changed = True
+        if mapped_role and mapping.role != mapped_role:
+            mapping.role = mapped_role
             changed = True
         if changed:
             db.commit()
@@ -131,3 +140,15 @@ async def get_current_user(
             logger.warning("Matrix provisioning failed for local user %s", username)
 
     return mapping
+
+
+async def get_admin_user(
+    current_user: models.UserMapping = Depends(get_current_user),
+) -> models.UserMapping:
+    """Require the current user to have the admin role."""
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user

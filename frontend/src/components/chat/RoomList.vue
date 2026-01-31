@@ -45,6 +45,12 @@
         Keine Raeume vorhanden
       </div>
     </div>
+    <div v-if="currentUser?.role === 'admin'" class="room-list-footer">
+      <router-link to="/admin" class="admin-link" v-tooltip="'Admin-Panel'">
+        <i class="pi pi-cog"></i>
+        <span>Admin</span>
+      </router-link>
+    </div>
   </div>
 </template>
 
@@ -219,5 +225,31 @@ function roomIcon(room) {
   text-align: center;
   color: var(--text-color-secondary);
   font-size: 0.875rem;
+}
+
+.room-list-footer {
+  border-top: 1px solid var(--surface-border);
+  padding: 0.5rem 1rem;
+}
+
+.admin-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-color-secondary);
+  text-decoration: none;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+
+.admin-link:hover {
+  color: var(--primary-color);
+  background: var(--surface-hover, rgba(0, 0, 0, 0.03));
+}
+
+.admin-link i {
+  font-size: 0.95rem;
 }
 </style>

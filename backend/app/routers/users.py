@@ -25,6 +25,7 @@ class UserOut(BaseModel):
 
 class UserMeOut(UserOut):
     matrix_user_id: Optional[str] = None
+    role: str = "user"
 
 
 @router.get("/me", response_model=UserMeOut)

@@ -12,6 +12,7 @@ class UserMapping(Base):
     matrix_access_token_encrypted = Column(String(1024), nullable=True)
     tenant_id = Column(Integer, nullable=True)
     display_name = Column(String(255), nullable=True)
+    role = Column(String(50), default="user", server_default="user", nullable=False)
     is_bot = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

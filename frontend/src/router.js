@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import ChatView from './components/chat/ChatView.vue'
+import AdminPanel from './components/admin/AdminPanel.vue'
 
 const routes = [
   {
@@ -12,6 +13,11 @@ const routes = [
     name: 'room',
     component: ChatView,
     props: true,
+  },
+  {
+    path: '/admin',
+    name: 'admin',
+    component: AdminPanel,
   },
 ]
 
