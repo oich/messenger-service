@@ -134,22 +134,17 @@ async def admin_toggle_external_access(
 
     if body.enabled and not mapping.matrix_password:
         # User was provisioned before password storage was added.
-        # Generate a new password and re-login to get a fresh token.
+        # Use their existing access token to set a new password via the Matrix API.
         new_password = secrets.token_urlsafe(24)
-        localpart = mapping.matrix_user_id.split(":")[0].lstrip("@")
         try:
-            # Re-register sets a new password on Conduit (m.login.dummy auth)
-            result = await matrix_client.register_user(
-                username=localpart,
-                password=new_password,
-                admin=False,
+            await matrix_client.change_password(
+                access_token=mapping.matrix_access_token_encrypted,
+                new_password=new_password,
+                logout_devices=False,
             )
-            new_token = result.get("access_token", "")
-            if new_token:
-                mapping.matrix_access_token_encrypted = new_token
             mapping.matrix_password = new_password
         except MatrixClientError as e:
-            logger.error("Failed to re-provision password for %s: %s", hub_user_id, e)
+            logger.error("Failed to set password for %s: %s", hub_user_id, e)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Could not generate Matrix password for this user",

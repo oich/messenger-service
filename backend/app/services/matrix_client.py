@@ -78,6 +78,26 @@ class MatrixClient:
             return resp.json()
         raise MatrixClientError(f"Login failed: {resp.status_code} {resp.text}")
 
+    async def change_password(
+        self, access_token: str, new_password: str, logout_devices: bool = False
+    ) -> None:
+        """Change password for an authenticated user using their access token."""
+        client = await self._client()
+        body = {
+            "new_password": new_password,
+            "logout_devices": logout_devices,
+            "auth": {"type": "m.login.dummy"},
+        }
+        resp = await client.post(
+            "/_matrix/client/v3/account/password",
+            json=body,
+            headers=self._auth_headers(access_token),
+        )
+        if resp.status_code != 200:
+            raise MatrixClientError(
+                f"Change password failed: {resp.status_code} {resp.text}"
+            )
+
     # --- Rooms ---
 
     async def create_room(
