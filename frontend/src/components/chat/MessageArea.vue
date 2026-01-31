@@ -122,7 +122,8 @@ function resolveMediaUrl(mxcUrl) {
   const parts = mxcUrl.replace('mxc://', '').split('/')
   if (parts.length >= 2) {
     const baseUrl = import.meta.env.VITE_API_TARGET || ''
-    return `${baseUrl}/api/v1/messages/media/${parts[0]}/${parts.slice(1).join('/')}`
+    const token = localStorage.getItem('token') || ''
+    return `${baseUrl}/api/v1/messages/media/${parts[0]}/${parts.slice(1).join('/')}?token=${encodeURIComponent(token)}`
   }
   return mxcUrl
 }

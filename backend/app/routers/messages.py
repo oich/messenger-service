@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Request, status, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -316,10 +316,48 @@ async def _notify_room_members(
 async def get_media(
     server_name: str,
     media_id: str,
-    current_user: UserMapping = Depends(get_current_user),
+    token: str = Query(None),
+    request: Request = None,
+    db: Session = Depends(get_db),
 ):
-    """Proxy media download from Matrix content repository."""
+    """Proxy media download from Matrix content repository.
+
+    Supports auth via query param (?token=...) or Authorization header,
+    since <img> and <a> tags cannot set custom headers.
+    """
     import httpx
+    from app.hub_sso import is_sso_enabled, validate_hub_token
+    from app.auth import _get_or_create_hub_shadow_user
+    from app.config import SECRET_KEY, ALGORITHM
+    from jose import JWTError, jwt as jose_jwt
+
+    # Authenticate: query param first, then header
+    auth_token = token
+    if not auth_token and request:
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            auth_token = auth_header[7:]
+
+    if not auth_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
+    # Validate token (Hub SSO or local JWT)
+    authenticated = False
+    if is_sso_enabled():
+        hub_info = validate_hub_token(auth_token)
+        if hub_info:
+            authenticated = True
+
+    if not authenticated:
+        try:
+            payload = jose_jwt.decode(auth_token, SECRET_KEY, algorithms=[ALGORITHM])
+            if payload.get("sub"):
+                authenticated = True
+        except JWTError:
+            pass
+
+    if not authenticated:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
     download_url = (
         f"{MATRIX_HOMESERVER_URL}/_matrix/media/v3/download/{server_name}/{media_id}"
