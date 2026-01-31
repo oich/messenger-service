@@ -5,7 +5,7 @@
       :currentRoomId="currentRoomId"
       @select="selectRoom"
       @create="showCreateRoom = true"
-      @start-dm="openDmDialog"
+      @new-message="showNewMessage = true"
     />
     <div class="chat-main">
       <div v-if="currentRoom" class="chat-header">
@@ -26,6 +26,7 @@
       <MessageCompose
         v-if="currentRoomId"
         @send="handleSend"
+        @upload="handleUpload"
       />
     </div>
 
@@ -51,41 +52,10 @@
       </template>
     </Dialog>
 
-    <Dialog
-      v-model:visible="showDmDialog"
-      header="Direktnachricht"
-      modal
-      :style="{ width: '400px' }"
-    >
-      <div class="flex flex-column gap-3">
-        <div class="flex flex-column gap-1">
-          <label>Nutzer suchen</label>
-          <InputText v-model="dmSearch" placeholder="Name eingeben..." @input="onDmSearch" />
-        </div>
-        <div class="dm-user-list">
-          <div
-            v-for="user in dmUsers"
-            :key="user.hub_user_id"
-            class="dm-user-item"
-            :class="{ selected: dmSelectedUser?.hub_user_id === user.hub_user_id }"
-            @click="dmSelectedUser = user"
-          >
-            <i class="pi pi-user"></i>
-            <span>{{ user.display_name || user.hub_user_id }}</span>
-          </div>
-          <div v-if="dmUsers.length === 0 && !dmLoading" class="dm-empty">
-            Keine Nutzer gefunden
-          </div>
-          <div v-if="dmLoading" class="dm-empty">
-            Laden...
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <Button label="Abbrechen" severity="secondary" @click="showDmDialog = false" />
-        <Button label="Nachricht senden" @click="handleStartDm" :disabled="!dmSelectedUser" />
-      </template>
-    </Dialog>
+    <NewMessageDialog
+      v-model="showNewMessage"
+      @send="handleNewMessage"
+    />
   </div>
 </template>
 
@@ -97,6 +67,7 @@ import { useSSE } from '../../composables/useSSE'
 import RoomList from './RoomList.vue'
 import MessageArea from './MessageArea.vue'
 import MessageCompose from './MessageCompose.vue'
+import NewMessageDialog from './NewMessageDialog.vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -114,6 +85,7 @@ const {
   fetchRooms,
   selectRoom,
   sendMessage,
+  uploadFile,
   createRoom,
   createDM,
   fetchUsers,
@@ -124,13 +96,7 @@ const {
 const showCreateRoom = ref(false)
 const newRoomName = ref('')
 const newRoomTopic = ref('')
-
-const showDmDialog = ref(false)
-const dmSearch = ref('')
-const dmUsers = ref([])
-const dmSelectedUser = ref(null)
-const dmLoading = ref(false)
-let dmSearchTimeout = null
+const showNewMessage = ref(false)
 
 const { connect } = useSSE((event) => {
   if (event.type === 'new_message') {
@@ -140,8 +106,11 @@ const { connect } = useSSE((event) => {
       sender: event.sender,
       sender_display_name: event.sender_display_name,
       body: event.body,
-      msg_type: 'm.text',
+      msg_type: event.msg_type || 'm.text',
       timestamp: new Date().toISOString(),
+      file_url: event.file_url || null,
+      filename: event.filename || null,
+      file_size: event.file_size || null,
     })
   }
   if (event.type === 'notification') {
@@ -162,6 +131,15 @@ async function handleSend(body) {
   }
 }
 
+async function handleUpload({ file, body }) {
+  if (!currentRoomId.value) return
+  try {
+    await uploadFile(currentRoomId.value, file, body)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Fehler', detail: 'Datei konnte nicht hochgeladen werden', life: 3000 })
+  }
+}
+
 async function handleCreateRoom() {
   try {
     const room = await createRoom(newRoomName.value.trim(), newRoomTopic.value.trim() || null)
@@ -174,32 +152,32 @@ async function handleCreateRoom() {
   }
 }
 
-async function openDmDialog() {
-  showDmDialog.value = true
-  dmSearch.value = ''
-  dmSelectedUser.value = null
-  dmLoading.value = true
-  dmUsers.value = await fetchUsers()
-  dmLoading.value = false
-}
-
-function onDmSearch() {
-  clearTimeout(dmSearchTimeout)
-  dmSearchTimeout = setTimeout(async () => {
-    dmLoading.value = true
-    dmUsers.value = await fetchUsers(dmSearch.value || null)
-    dmLoading.value = false
-  }, 300)
-}
-
-async function handleStartDm() {
-  if (!dmSelectedUser.value) return
+async function handleNewMessage({ recipients, groupName, message, file }) {
   try {
-    const room = await createDM(dmSelectedUser.value.hub_user_id)
-    showDmDialog.value = false
+    let room
+    if (recipients.length === 1) {
+      // DM
+      room = await createDM(recipients[0].hub_user_id)
+    } else {
+      // Group — create room with all recipients
+      const inviteIds = recipients.map(u => u.matrix_user_id).filter(Boolean)
+      room = await createRoom(
+        groupName || recipients.map(u => u.display_name || u.hub_user_id).join(', '),
+        null,
+        inviteIds,
+      )
+    }
+
     selectRoom(room.matrix_room_id)
+
+    // Send the first message
+    if (file) {
+      await uploadFile(room.matrix_room_id, file, message)
+    } else if (message) {
+      await sendMessage(message)
+    }
   } catch {
-    toast.add({ severity: 'error', summary: 'Fehler', detail: 'DM konnte nicht erstellt werden', life: 3000 })
+    toast.add({ severity: 'error', summary: 'Fehler', detail: 'Nachricht konnte nicht gesendet werden', life: 3000 })
   }
 }
 
@@ -248,41 +226,5 @@ onMounted(async () => {
   background: var(--surface-overlay);
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
-}
-
-.dm-user-list {
-  max-height: 250px;
-  overflow-y: auto;
-  border: 1px solid var(--surface-border);
-  border-radius: 6px;
-}
-
-.dm-user-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 0.75rem;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.dm-user-item:hover {
-  background: var(--surface-overlay);
-}
-
-.dm-user-item.selected {
-  background: var(--primary-color);
-  color: #fff;
-}
-
-.dm-user-item i {
-  font-size: 0.9rem;
-}
-
-.dm-empty {
-  padding: 1rem;
-  text-align: center;
-  color: var(--text-color-secondary);
-  font-size: 0.875rem;
 }
 </style>

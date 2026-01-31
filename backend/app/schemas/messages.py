@@ -18,6 +18,9 @@ class MessageOut(BaseModel):
     body: str
     msg_type: str = "m.text"
     timestamp: datetime
+    file_url: Optional[str] = None
+    filename: Optional[str] = None
+    file_size: Optional[int] = None
 
 
 class MessageHistory(BaseModel):

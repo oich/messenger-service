@@ -17,6 +17,7 @@ from app.services.room_manager import (
     get_or_create_dm_room,
     ensure_user_in_room,
 )
+from app.services.user_provisioning import provision_matrix_user
 
 logger = logging.getLogger("rooms")
 router = APIRouter(prefix="/api/v1/rooms", tags=["rooms"])
@@ -144,6 +145,18 @@ async def create_dm(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Target user not found",
         )
+
+    # Ensure target user is provisioned on Matrix
+    if not target_mapping.matrix_access_token_encrypted:
+        try:
+            target_mapping = await provision_matrix_user(
+                hub_user_id=target_mapping.hub_user_id,
+                display_name=target_mapping.display_name or target_user_id,
+                tenant_id=target_mapping.tenant_id,
+                db=db,
+            )
+        except Exception:
+            logger.warning("Could not provision target user %s", target_user_id)
 
     try:
         mapping = await get_or_create_dm_room(

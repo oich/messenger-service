@@ -110,6 +110,27 @@ async def get_or_create_dm_room(
         .first()
     )
     if mapping:
+        # Ensure both users are joined (they may have been only invited)
+        room_id = mapping.matrix_room_id
+        for user_mapping, token in [
+            (user1_mapping, user1_token),
+            (user2_mapping, user2_mapping.matrix_access_token_encrypted),
+        ]:
+            if not token:
+                continue
+            try:
+                await matrix_client.join_room(token, room_id)
+            except MatrixClientError:
+                # Try invite first, then join
+                try:
+                    await matrix_client.invite_user(user1_token, room_id, user_mapping.matrix_user_id)
+                    await matrix_client.join_room(token, room_id)
+                except MatrixClientError:
+                    logger.warning(
+                        "User %s could not join existing DM room %s",
+                        user_mapping.matrix_user_id,
+                        room_id,
+                    )
         return mapping
 
     room_id = await matrix_client.create_room(
@@ -118,6 +139,19 @@ async def get_or_create_dm_room(
         invite=[user2_mapping.matrix_user_id],
         is_direct=True,
     )
+
+    # Auto-join recipient so the room appears in their joined_rooms
+    if user2_mapping.matrix_access_token_encrypted:
+        try:
+            await matrix_client.join_room(
+                user2_mapping.matrix_access_token_encrypted, room_id
+            )
+        except MatrixClientError:
+            logger.warning(
+                "User %s could not auto-join DM room %s",
+                user2_mapping.matrix_user_id,
+                room_id,
+            )
 
     mapping = RoomMapping(
         matrix_room_id=room_id,

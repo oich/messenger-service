@@ -119,7 +119,7 @@ class MatrixClient:
             json={},
             headers=self._auth_headers(access_token),
         )
-        if resp.status_code not in (200, 403):
+        if resp.status_code != 200:
             raise MatrixClientError(f"Join room failed: {resp.status_code} {resp.text}")
 
     async def invite_user(
@@ -193,6 +193,55 @@ class MatrixClient:
         if resp.status_code == 200:
             return resp.json()
         raise MatrixClientError(f"Get messages failed: {resp.status_code} {resp.text}")
+
+    # --- File upload ---
+
+    async def upload_file(
+        self,
+        access_token: str,
+        file_data: bytes,
+        content_type: str,
+        filename: str,
+    ) -> str:
+        """Upload a file to Matrix content repository, returns mxc:// URI."""
+        client = await self._client()
+        headers = {
+            **self._auth_headers(access_token),
+            "Content-Type": content_type,
+        }
+        params = {"filename": filename}
+        resp = await client.post(
+            "/_matrix/media/v3/upload",
+            content=file_data,
+            headers=headers,
+            params=params,
+            timeout=httpx.Timeout(60.0),
+        )
+        if resp.status_code == 200:
+            return resp.json()["content_uri"]
+        raise MatrixClientError(f"Upload failed: {resp.status_code} {resp.text}")
+
+    async def send_message_event(
+        self,
+        access_token: str,
+        room_id: str,
+        content: Dict[str, Any],
+        txn_id: Optional[str] = None,
+    ) -> str:
+        """Send a message event with arbitrary content to a room, returns event_id."""
+        import uuid
+
+        client = await self._client()
+        if not txn_id:
+            txn_id = str(uuid.uuid4())
+        resp = await client.put(
+            f"/_matrix/client/v3/rooms/{room_id}/send/m.room.message/{txn_id}",
+            json=content,
+            headers=self._auth_headers(access_token),
+        )
+        if resp.status_code == 200:
+            return resp.json()["event_id"]
+        raise MatrixClientError(f"Send event failed: {resp.status_code} {resp.text}")
 
     # --- Sync ---
 

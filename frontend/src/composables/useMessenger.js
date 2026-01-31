@@ -27,6 +27,9 @@ export function useMessenger() {
     messages.value = []
     endToken.value = null
     hasMore.value = false
+    // Reset unread count for this room
+    const room = rooms.value.find(r => r.matrix_room_id === roomId)
+    if (room) room.unread_count = 0
     await fetchMessages(roomId)
   }
 
@@ -60,6 +63,25 @@ export function useMessenger() {
       messages.value.push(data)
     } catch (err) {
       console.error('Failed to send message:', err)
+      throw err
+    }
+  }
+
+  async function uploadFile(roomId, file, body = '') {
+    const formData = new FormData()
+    formData.append('room_id', roomId)
+    formData.append('file', file)
+    if (body) formData.append('body', body)
+    try {
+      const { data } = await api.post('/api/v1/messages/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      if (roomId === currentRoomId.value) {
+        messages.value.push(data)
+      }
+      return data
+    } catch (err) {
+      console.error('Failed to upload file:', err)
       throw err
     }
   }
@@ -121,11 +143,25 @@ export function useMessenger() {
   }
 
   function addIncomingMessage(msg) {
+    // Always add to current room's messages if it matches
     if (msg.room_id === currentRoomId.value) {
       const exists = messages.value.some(m => m.event_id === msg.event_id)
       if (!exists) {
         messages.value.push(msg)
       }
+    }
+
+    // Update room list: last_message, unread_count
+    const room = rooms.value.find(r => r.matrix_room_id === msg.room_id)
+    if (room) {
+      room.last_message = msg.body
+      room.last_message_ts = msg.timestamp
+      if (msg.room_id !== currentRoomId.value) {
+        room.unread_count = (room.unread_count || 0) + 1
+      }
+    } else {
+      // Unknown room — reload rooms list to pick up new DMs
+      fetchRooms()
     }
   }
 
@@ -139,6 +175,7 @@ export function useMessenger() {
     fetchRooms,
     selectRoom,
     sendMessage,
+    uploadFile,
     createRoom,
     createDM,
     fetchUsers,
