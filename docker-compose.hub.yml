@@ -1,11 +1,22 @@
 services:
   backend:
     environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://messenger:messenger@db:5432/messenger}
+      - SECRET_KEY=${SECRET_KEY:-messenger-dev-secret}
       - HUB_SECRET_KEY=${HUB_SECRET_KEY:-hub-dev-secret-change-me}
+      - HUB_INTERNAL_URL=${HUB_INTERNAL_URL:-http://hub-backend:8000}
       - MESSENGER_SERVICE_TOKEN=${MESSENGER_SERVICE_TOKEN:-messenger-service-token-dev}
+      - AUTO_MIGRATE=${AUTO_MIGRATE:-1}
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
     networks:
       - default
       - hub_satellite_net
+
+  db:
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-messenger}
+      - POSTGRES_USER=${POSTGRES_USER:-messenger}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-messenger}
 
   frontend:
     build:

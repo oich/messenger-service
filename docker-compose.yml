@@ -39,7 +39,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8005:8000"
+      - "8015:8000"
     environment:
       - DATABASE_URL=postgresql://messenger:messenger@db:5432/messenger
       - SECRET_KEY=${SECRET_KEY:-messenger-dev-secret}
