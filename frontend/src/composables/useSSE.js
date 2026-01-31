@@ -5,12 +5,13 @@ const connected = ref(false)
 export function useSSE(onMessage) {
   let eventSource = null
   let reconnectTimer = null
+  let pollTimer = null
   let destroyed = false
+  let usePolling = false
 
   function connect() {
     if (destroyed) return
 
-    // Close existing connection before creating a new one
     if (eventSource) {
       eventSource.onopen = null
       eventSource.onmessage = null
@@ -28,36 +29,99 @@ export function useSSE(onMessage) {
     const baseUrl = import.meta.env.VITE_API_TARGET || ''
     const url = `${baseUrl}/api/v1/events/stream?token=${encodeURIComponent(token)}`
 
-    console.log('[SSE] Connecting...')
-    const es = new EventSource(url)
-    eventSource = es
+    console.log('[SSE] Connecting to:', url.replace(/token=[^&]+/, 'token=***'))
 
-    es.onopen = () => {
-      console.log('[SSE] Connected')
-      connected.value = true
+    let opened = false
+
+    try {
+      const es = new EventSource(url)
+      eventSource = es
+
+      es.onopen = () => {
+        opened = true
+        console.log('[SSE] Connected successfully')
+        connected.value = true
+        usePolling = false
+        if (pollTimer) {
+          clearTimeout(pollTimer)
+          pollTimer = null
+        }
+      }
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          if (data.type === 'keepalive' || data.type === 'connected') return
+          console.log('[SSE] Event received:', data.type)
+          if (onMessage) onMessage(data)
+        } catch (err) {
+          console.error('[SSE] Parse error:', err)
+        }
+      }
+
+      es.onerror = () => {
+        connected.value = false
+        if (eventSource === es) {
+          es.close()
+          eventSource = null
+          if (!opened && !usePolling) {
+            console.warn('[SSE] EventSource failed, falling back to polling')
+            usePolling = true
+            startPolling()
+          } else if (!usePolling) {
+            scheduleReconnect()
+          }
+        }
+      }
+
+      // Safety timeout
+      setTimeout(() => {
+        if (!opened && !destroyed && !usePolling) {
+          console.warn('[SSE] Connection timeout, falling back to polling')
+          if (eventSource === es) {
+            es.close()
+            eventSource = null
+          }
+          usePolling = true
+          startPolling()
+        }
+      }, 5000)
+
+    } catch (err) {
+      console.error('[SSE] EventSource constructor failed:', err)
+      usePolling = true
+      startPolling()
     }
+  }
 
-    es.onmessage = (event) => {
+  function startPolling() {
+    if (destroyed || pollTimer) return
+    console.log('[SSE] Starting polling fallback (every 2s)')
+    connected.value = true
+
+    async function poll() {
+      if (destroyed) return
       try {
-        const data = JSON.parse(event.data)
-        if (data.type === 'keepalive') return
-        console.log('[SSE] Event received:', data.type)
-        if (onMessage) onMessage(data)
-      } catch (err) {
-        console.error('[SSE] Parse error:', err)
+        const token = localStorage.getItem('token')
+        if (!token) return
+        const baseUrl = import.meta.env.VITE_API_TARGET || ''
+        const resp = await fetch(`${baseUrl}/api/v1/events/poll?token=${encodeURIComponent(token)}`)
+        if (resp.ok) {
+          const events = await resp.json()
+          for (const event of events) {
+            if (event.type === 'keepalive' || event.type === 'connected') continue
+            if (onMessage) onMessage(event)
+          }
+        }
+      } catch {
+        // Polling endpoint may not be available
+      }
+      if (!destroyed) {
+        pollTimer = setTimeout(poll, 2000)
       }
     }
 
-    es.onerror = (err) => {
-      console.warn('[SSE] Connection error, will reconnect...', err)
-      connected.value = false
-      // Only handle if this is still the active connection
-      if (eventSource === es) {
-        es.close()
-        eventSource = null
-        scheduleReconnect()
-      }
-    }
+    poll()
   }
 
   function scheduleReconnect() {
@@ -66,7 +130,7 @@ export function useSSE(onMessage) {
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null
       connect()
-    }, 3000)
+    }, 5000)
   }
 
   function disconnect() {
@@ -74,6 +138,10 @@ export function useSSE(onMessage) {
     if (reconnectTimer) {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
+    }
+    if (pollTimer) {
+      clearTimeout(pollTimer)
+      pollTimer = null
     }
     if (eventSource) {
       eventSource.onopen = null

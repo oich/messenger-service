@@ -3,8 +3,7 @@ import sys
 import time
 
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.types import ASGIApp, Receive, Scope, Send, Message
 
 from app.config import LOG_LEVEL
 from app.database import engine, SessionLocal, Base
@@ -38,21 +37,20 @@ app = FastAPI(
     version="1.0.0",
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
+class CORSAndLoggingMiddleware:
+    """Combined CORS + request logging as pure ASGI middleware.
 
-class LogRequestsMiddleware:
-    """Pure ASGI middleware for request logging.
-
-    Unlike @app.middleware("http") / BaseHTTPMiddleware, this does NOT
-    buffer streaming responses, so SSE connections work correctly.
+    SSE streaming paths (/api/v1/events/stream) are passed through
+    with zero wrapping to avoid any response buffering.
     """
+
+    CORS_HEADERS = [
+        (b"access-control-allow-origin", b"*"),
+        (b"access-control-allow-credentials", b"true"),
+        (b"access-control-allow-methods", b"*"),
+        (b"access-control-allow-headers", b"*"),
+    ]
 
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -63,26 +61,50 @@ class LogRequestsMiddleware:
             return
 
         path = scope.get("path", "")
+        method = scope.get("method", "")
 
-        # Skip logging for SSE streaming endpoints (don't interfere at all)
-        if path.startswith("/api/v1/events"):
-            await self.app(scope, receive, send)
+        # Handle CORS preflight
+        if method == "OPTIONS":
+            await send({
+                "type": "http.response.start",
+                "status": 200,
+                "headers": self.CORS_HEADERS + [
+                    (b"access-control-max-age", b"600"),
+                    (b"content-length", b"0"),
+                ],
+            })
+            await send({"type": "http.response.body", "body": b""})
             return
 
+        # SSE stream: pass through completely — no wrapping, no logging
+        if path == "/api/v1/events/stream":
+            async def sse_send(message: Message):
+                if message["type"] == "http.response.start":
+                    headers = list(message.get("headers", []))
+                    headers.extend(self.CORS_HEADERS)
+                    message = {**message, "headers": headers}
+                await send(message)
+
+            await self.app(scope, receive, sse_send)
+            return
+
+        # All other requests: add CORS headers + log
         start_time = time.time()
         status_code = None
 
-        async def send_wrapper(message):
+        async def send_wrapper(message: Message):
             nonlocal status_code
             if message["type"] == "http.response.start":
                 status_code = message.get("status", 0)
+                headers = list(message.get("headers", []))
+                headers.extend(self.CORS_HEADERS)
+                message = {**message, "headers": headers}
             await send(message)
 
         try:
             await self.app(scope, receive, send_wrapper)
         except Exception:
             duration = time.time() - start_time
-            method = scope.get("method", "?")
             logger.exception(
                 "Unhandled exception during '%s %s' after %.4fs",
                 method, path, duration,
@@ -90,14 +112,13 @@ class LogRequestsMiddleware:
             raise
         else:
             duration = time.time() - start_time
-            method = scope.get("method", "?")
             logger.info(
                 "'%s %s' - Status: %s - Duration: %.4fs",
                 method, path, status_code, duration,
             )
 
 
-app.add_middleware(LogRequestsMiddleware)
+app.add_middleware(CORSAndLoggingMiddleware)
 
 
 @app.on_event("startup")

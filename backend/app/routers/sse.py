@@ -1,7 +1,8 @@
 """Server-Sent Events endpoint for real-time push."""
 
+import asyncio
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
@@ -83,3 +84,32 @@ async def event_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/poll")
+async def poll_events(
+    current_user: UserMapping = Depends(_get_sse_user),
+) -> List[dict]:
+    """Poll for pending events (fallback when SSE/EventSource doesn't work).
+
+    Returns all queued events for this user and immediately returns.
+    If no events are pending, returns an empty list.
+    """
+    user_id = current_user.hub_user_id
+
+    # Ensure user has a subscription queue
+    if user_id not in broker._subscribers or not broker._subscribers[user_id]:
+        broker.subscribe(user_id)
+
+    events = []
+    # Drain all queues for this user
+    for q in list(broker._subscribers.get(user_id, [])):
+        while True:
+            try:
+                event = q.get_nowait()
+                if event.get("type") != "keepalive":
+                    events.append(event)
+            except asyncio.QueueEmpty:
+                break
+
+    return events
