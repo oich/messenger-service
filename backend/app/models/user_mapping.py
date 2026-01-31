@@ -13,6 +13,8 @@ class UserMapping(Base):
     tenant_id = Column(Integer, nullable=True)
     display_name = Column(String(255), nullable=True)
     role = Column(String(50), default="user", server_default="user", nullable=False)
+    matrix_password = Column(String(255), nullable=True)
+    external_client_enabled = Column(Boolean, default=False, server_default="false", nullable=False)
     is_bot = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

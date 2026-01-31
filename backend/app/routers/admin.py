@@ -1,6 +1,7 @@
 """Admin endpoints for messenger management (admin-only)."""
 
 import logging
+import secrets
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,10 +10,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
 from app.auth import get_admin_user
+from app.config import MATRIX_SERVER_NAME
 from app.database import get_db
 from app.models import UserMapping, RoomMapping, RoomType
 from app.services.sse_broker import broker
-from app.services.matrix_client import matrix_client
+from app.services.matrix_client import matrix_client, MatrixClientError
 
 logger = logging.getLogger("admin")
 
@@ -27,6 +29,7 @@ class AdminUserOut(BaseModel):
     role: str
     matrix_user_id: str
     provisioned: bool
+    external_client_enabled: bool = False
     created_at: Optional[str] = None
 
     class Config:
@@ -71,6 +74,7 @@ async def admin_list_users(
             role=u.role or "user",
             matrix_user_id=u.matrix_user_id,
             provisioned=bool(u.matrix_access_token_encrypted),
+            external_client_enabled=bool(u.external_client_enabled),
             created_at=u.created_at.isoformat() if u.created_at else None,
         )
         for u in users
@@ -97,6 +101,64 @@ async def admin_update_user(
     db.commit()
     db.refresh(mapping)
     return {"ok": True, "display_name": mapping.display_name}
+
+
+class ExternalAccessToggle(BaseModel):
+    enabled: bool
+
+
+@router.post("/users/{hub_user_id}/external-access")
+async def admin_toggle_external_access(
+    hub_user_id: str,
+    body: ExternalAccessToggle,
+    admin: UserMapping = Depends(get_admin_user),
+    db: Session = Depends(get_db),
+):
+    """Enable or disable external Matrix client access for a user.
+
+    When enabling, ensures the user has a stored Matrix password
+    (re-provisions with a new password if needed).
+    """
+    mapping = (
+        db.query(UserMapping)
+        .filter(UserMapping.hub_user_id == hub_user_id)
+        .first()
+    )
+    if not mapping:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if not mapping.matrix_access_token_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not yet provisioned on Matrix",
+        )
+
+    if body.enabled and not mapping.matrix_password:
+        # User was provisioned before password storage was added.
+        # Generate a new password and re-login to get a fresh token.
+        new_password = secrets.token_urlsafe(24)
+        localpart = mapping.matrix_user_id.split(":")[0].lstrip("@")
+        try:
+            # Re-register sets a new password on Conduit (m.login.dummy auth)
+            result = await matrix_client.register_user(
+                username=localpart,
+                password=new_password,
+                admin=False,
+            )
+            new_token = result.get("access_token", "")
+            if new_token:
+                mapping.matrix_access_token_encrypted = new_token
+            mapping.matrix_password = new_password
+        except MatrixClientError as e:
+            logger.error("Failed to re-provision password for %s: %s", hub_user_id, e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not generate Matrix password for this user",
+            )
+
+    mapping.external_client_enabled = body.enabled
+    db.commit()
+    db.refresh(mapping)
+    return {"ok": True, "external_client_enabled": mapping.external_client_enabled}
 
 
 # ── Room management ────────────────────────────────────────────────

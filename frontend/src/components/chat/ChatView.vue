@@ -7,6 +7,7 @@
       @select="handleSelectRoom"
       @create="openCreateRoom"
       @new-message="showNewMessage = true"
+      @open-external-client="showExternalClient = true"
     />
     <div class="chat-main">
       <div v-if="currentRoom" class="chat-header">
@@ -174,6 +175,8 @@
       v-model="showNewMessage"
       @send="handleNewMessage"
     />
+
+    <ExternalClientDialog v-model="showExternalClient" />
   </div>
 </template>
 
@@ -186,6 +189,7 @@ import RoomList from './RoomList.vue'
 import MessageArea from './MessageArea.vue'
 import MessageCompose from './MessageCompose.vue'
 import NewMessageDialog from './NewMessageDialog.vue'
+import ExternalClientDialog from './ExternalClientDialog.vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -339,6 +343,9 @@ async function handleInviteUser(user) {
 
 // --- New message ---
 const showNewMessage = ref(false)
+
+// --- External client ---
+const showExternalClient = ref(false)
 
 // --- Notifications ---
 function showBrowserNotification(event) {

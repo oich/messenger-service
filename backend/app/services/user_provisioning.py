@@ -59,6 +59,7 @@ async def provision_matrix_user(
             hub_user_id=hub_user_id,
             matrix_user_id=matrix_user_id,
             matrix_access_token_encrypted=access_token,
+            matrix_password=password,
             tenant_id=tenant_id,
             display_name=display_name,
             is_bot=False,
@@ -67,6 +68,7 @@ async def provision_matrix_user(
     else:
         mapping.matrix_access_token_encrypted = access_token
         mapping.matrix_user_id = matrix_user_id
+        mapping.matrix_password = password
         if display_name:
             mapping.display_name = display_name
         if tenant_id:

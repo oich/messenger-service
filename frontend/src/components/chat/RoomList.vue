@@ -45,8 +45,18 @@
         Keine Raeume vorhanden
       </div>
     </div>
-    <div v-if="currentUser?.role === 'admin'" class="room-list-footer">
-      <router-link to="/admin" class="admin-link" v-tooltip="'Admin-Panel'">
+    <div v-if="currentUser?.external_client_enabled || currentUser?.role === 'admin'" class="room-list-footer">
+      <a
+        v-if="currentUser?.external_client_enabled"
+        href="#"
+        class="footer-link"
+        @click.prevent="$emit('open-external-client')"
+        v-tooltip="'Mit Matrix-Client verbinden'"
+      >
+        <i class="pi pi-mobile"></i>
+        <span>Matrix-Client</span>
+      </a>
+      <router-link v-if="currentUser?.role === 'admin'" to="/admin" class="footer-link" v-tooltip="'Admin-Panel'">
         <i class="pi pi-cog"></i>
         <span>Admin</span>
       </router-link>
@@ -64,7 +74,7 @@ const props = defineProps({
   currentUser: { type: Object, default: null },
 })
 
-defineEmits(['select', 'create', 'new-message'])
+defineEmits(['select', 'create', 'new-message', 'open-external-client'])
 
 const userInitials = computed(() => {
   const name = props.currentUser?.display_name || props.currentUser?.hub_user_id || '?'
@@ -230,9 +240,12 @@ function roomIcon(room) {
 .room-list-footer {
   border-top: 1px solid var(--surface-border);
   padding: 0.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
-.admin-link {
+.footer-link {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -244,12 +257,12 @@ function roomIcon(room) {
   transition: all 0.15s;
 }
 
-.admin-link:hover {
+.footer-link:hover {
   color: var(--primary-color);
   background: var(--surface-hover, rgba(0, 0, 0, 0.03));
 }
 
-.admin-link i {
+.footer-link i {
   font-size: 0.95rem;
 }
 </style>

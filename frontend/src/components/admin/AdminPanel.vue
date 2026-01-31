@@ -39,6 +39,7 @@
               <th>Rolle</th>
               <th>Matrix-ID</th>
               <th>Provisioniert</th>
+              <th>Ext. Client</th>
               <th>Erstellt am</th>
               <th></th>
             </tr>
@@ -54,6 +55,18 @@
               <td>
                 <i :class="user.provisioned ? 'pi pi-check-circle status-ok' : 'pi pi-times-circle status-no'"></i>
               </td>
+              <td>
+                <button
+                  v-if="user.provisioned"
+                  class="toggle-btn"
+                  :class="{ active: user.external_client_enabled }"
+                  @click="toggleExternalAccess(user)"
+                  :title="user.external_client_enabled ? 'Ext. Client deaktivieren' : 'Ext. Client aktivieren'"
+                >
+                  <i :class="user.external_client_enabled ? 'pi pi-check' : 'pi pi-times'"></i>
+                </button>
+                <span v-else class="small">-</span>
+              </td>
               <td class="small">{{ formatDate(user.created_at) }}</td>
               <td>
                 <button class="icon-btn" @click="openEditUser(user)" title="Bearbeiten">
@@ -62,7 +75,7 @@
               </td>
             </tr>
             <tr v-if="filteredUsers.length === 0">
-              <td colspan="7" class="empty-row">Keine Nutzer gefunden</td>
+              <td colspan="8" class="empty-row">Keine Nutzer gefunden</td>
             </tr>
           </tbody>
         </table>
@@ -251,6 +264,26 @@ async function saveEditUser() {
     toast.add({ severity: 'success', summary: 'Gespeichert', life: 3000 })
   } catch {
     toast.add({ severity: 'error', summary: 'Fehler', detail: 'Konnte nicht gespeichert werden', life: 3000 })
+  }
+}
+
+// External client access toggle
+async function toggleExternalAccess(user) {
+  const newState = !user.external_client_enabled
+  try {
+    await api.post(`/api/v1/admin/users/${encodeURIComponent(user.hub_user_id)}/external-access`, {
+      enabled: newState,
+    })
+    user.external_client_enabled = newState
+    toast.add({
+      severity: 'success',
+      summary: newState ? 'Ext. Client aktiviert' : 'Ext. Client deaktiviert',
+      detail: user.display_name || user.hub_user_id,
+      life: 3000,
+    })
+  } catch (err) {
+    const detail = err.response?.data?.detail || 'Fehler beim Umschalten'
+    toast.add({ severity: 'error', summary: 'Fehler', detail, life: 5000 })
   }
 }
 
@@ -545,6 +578,30 @@ onUnmounted(() => {
   color: var(--text-color-secondary);
   opacity: 0.4;
   font-size: 1rem;
+}
+
+/* Toggle button */
+.toggle-btn {
+  background: var(--surface-200, #e5e7eb);
+  border: 1px solid var(--surface-border);
+  cursor: pointer;
+  color: var(--text-color-secondary);
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.toggle-btn.active {
+  background: var(--green-100, #dcfce7);
+  border-color: var(--green-300, #86efac);
+  color: var(--green-700, #15803d);
+}
+
+.toggle-btn:hover {
+  opacity: 0.8;
 }
 
 /* Icon buttons */

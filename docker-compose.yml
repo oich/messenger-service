@@ -17,6 +17,9 @@ services:
       - CONDUIT_ADDRESS=0.0.0.0
       - CONDUIT_ALLOW_CHECK_FOR_UPDATES=false
     restart: unless-stopped
+    networks:
+      - default
+      - hub_satellite_net
 
   db:
     image: postgres:16-alpine
@@ -63,3 +66,8 @@ services:
 volumes:
   conduit_data:
   messenger_db_data:
+
+networks:
+  default:
+  hub_satellite_net:
+    external: true
