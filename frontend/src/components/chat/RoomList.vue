@@ -1,5 +1,12 @@
 <template>
   <div class="room-list">
+    <div class="room-list-user" v-if="currentUser">
+      <div class="user-avatar">{{ userInitials }}</div>
+      <div class="user-info">
+        <span class="user-name">{{ currentUser.display_name || currentUser.hub_user_id }}</span>
+        <span class="user-id">{{ currentUser.hub_user_id }}</span>
+      </div>
+    </div>
     <div class="room-list-header">
       <h3>Raeume</h3>
       <Button
@@ -42,14 +49,23 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import Button from 'primevue/button'
 
-defineProps({
+const props = defineProps({
   rooms: { type: Array, default: () => [] },
   currentRoomId: { type: String, default: null },
+  currentUser: { type: Object, default: null },
 })
 
 defineEmits(['select', 'create', 'new-message'])
+
+const userInitials = computed(() => {
+  const name = props.currentUser?.display_name || props.currentUser?.hub_user_id || '?'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+})
 
 function roomIcon(room) {
   switch (room.room_type) {
@@ -70,6 +86,55 @@ function roomIcon(room) {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.room-list-user {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--surface-border);
+  background: var(--surface-card);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.user-id {
+  font-size: 0.7rem;
+  color: var(--text-color-secondary);
+  opacity: 0.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .room-list-header {

@@ -7,11 +7,21 @@ const messages = ref([])
 const loading = ref(false)
 const endToken = ref(null)
 const hasMore = ref(false)
+const currentUser = ref(null)
 
 export function useMessenger() {
   const currentRoom = computed(() =>
     rooms.value.find(r => r.matrix_room_id === currentRoomId.value)
   )
+
+  async function fetchCurrentUser() {
+    try {
+      const { data } = await api.get('/api/v1/users/me')
+      currentUser.value = data
+    } catch (err) {
+      console.error('Failed to fetch current user:', err)
+    }
+  }
 
   async function fetchRooms() {
     try {
@@ -160,8 +170,14 @@ export function useMessenger() {
         room.unread_count = (room.unread_count || 0) + 1
       }
     } else {
-      // Unknown room — reload rooms list to pick up new DMs
-      fetchRooms()
+      // Unknown room — reload rooms and then auto-select if no room is active
+      fetchRooms().then(() => {
+        const newRoom = rooms.value.find(r => r.matrix_room_id === msg.room_id)
+        if (newRoom) {
+          newRoom.last_message = msg.body
+          newRoom.unread_count = 1
+        }
+      })
     }
   }
 
@@ -169,9 +185,11 @@ export function useMessenger() {
     rooms,
     currentRoomId,
     currentRoom,
+    currentUser,
     messages,
     loading,
     hasMore,
+    fetchCurrentUser,
     fetchRooms,
     selectRoom,
     sendMessage,

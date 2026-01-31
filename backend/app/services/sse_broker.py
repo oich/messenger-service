@@ -36,12 +36,15 @@ class SSEBroker:
     async def publish_to_user(self, user_id: str, event: Dict[str, Any]) -> None:
         """Send an event to a specific user's SSE connections."""
         if user_id not in self._subscribers:
+            logger.debug("No SSE subscribers for user %s", user_id)
             return
-        for q in list(self._subscribers[user_id]):
+        queues = list(self._subscribers[user_id])
+        logger.debug("Publishing to user %s (%d connections)", user_id, len(queues))
+        for q in queues:
             try:
                 q.put_nowait(event)
             except asyncio.QueueFull:
-                pass
+                logger.warning("SSE queue full for user %s", user_id)
 
     async def broadcast(self, event: Dict[str, Any]) -> None:
         """Broadcast an event to all connected users."""
@@ -68,6 +71,9 @@ async def sse_event_stream(
     keepalive_seconds: int = 20,
 ) -> AsyncIterator[bytes]:
     """Generate SSE byte stream for a user connection."""
+    # Send initial connected event immediately so proxies flush headers
+    # and EventSource fires onopen
+    yield b"data: {\"type\":\"connected\"}\n\n"
     try:
         while True:
             try:

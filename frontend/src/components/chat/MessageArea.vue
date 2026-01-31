@@ -18,43 +18,44 @@
     <div
       v-for="msg in messages"
       :key="msg.event_id"
-      class="message-item"
+      class="message-row"
+      :class="{ 'message-row-own': isOwn(msg), 'message-row-other': !isOwn(msg) }"
     >
-      <div class="message-header">
-        <span class="message-sender">{{ msg.sender_display_name || msg.sender }}</span>
-        <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
-      </div>
-      <div class="message-body">
-        <!-- Image message -->
-        <div v-if="msg.msg_type === 'm.image' && msg.file_url" class="message-image">
-          <img
-            :src="resolveMediaUrl(msg.file_url)"
-            :alt="msg.filename || msg.body"
-            class="message-img"
-            loading="lazy"
-            @click="openImage(resolveMediaUrl(msg.file_url))"
-          />
-          <div v-if="msg.body && msg.body !== msg.filename" class="message-text">{{ msg.body }}</div>
+      <div class="message-bubble" :class="{ 'bubble-own': isOwn(msg), 'bubble-other': !isOwn(msg) }">
+        <div v-if="!isOwn(msg)" class="message-sender">{{ displayName(msg) }}</div>
+        <div class="message-body">
+          <!-- Image message -->
+          <div v-if="msg.msg_type === 'm.image' && msg.file_url" class="message-image">
+            <img
+              :src="resolveMediaUrl(msg.file_url)"
+              :alt="msg.filename || msg.body"
+              class="message-img"
+              loading="lazy"
+              @click="openImage(resolveMediaUrl(msg.file_url))"
+            />
+            <div v-if="msg.body && msg.body !== msg.filename" class="message-text">{{ msg.body }}</div>
+          </div>
+          <!-- File message -->
+          <div v-else-if="isFileMessage(msg.msg_type) && msg.file_url" class="message-file">
+            <a
+              :href="resolveMediaUrl(msg.file_url)"
+              target="_blank"
+              class="file-download"
+              :download="msg.filename"
+            >
+              <i class="pi pi-file"></i>
+              <div class="file-info">
+                <span class="file-name">{{ msg.filename || msg.body }}</span>
+                <span v-if="msg.file_size" class="file-size">{{ formatFileSize(msg.file_size) }}</span>
+              </div>
+              <i class="pi pi-download"></i>
+            </a>
+            <div v-if="msg.body && msg.body !== msg.filename" class="message-text">{{ msg.body }}</div>
+          </div>
+          <!-- Text message -->
+          <template v-else>{{ msg.body }}</template>
         </div>
-        <!-- File message -->
-        <div v-else-if="isFileMessage(msg.msg_type) && msg.file_url" class="message-file">
-          <a
-            :href="resolveMediaUrl(msg.file_url)"
-            target="_blank"
-            class="file-download"
-            :download="msg.filename"
-          >
-            <i class="pi pi-file"></i>
-            <div class="file-info">
-              <span class="file-name">{{ msg.filename || msg.body }}</span>
-              <span v-if="msg.file_size" class="file-size">{{ formatFileSize(msg.file_size) }}</span>
-            </div>
-            <i class="pi pi-download"></i>
-          </a>
-          <div v-if="msg.body && msg.body !== msg.filename" class="message-text">{{ msg.body }}</div>
-        </div>
-        <!-- Text message -->
-        <template v-else>{{ msg.body }}</template>
+        <div class="message-time">{{ formatTime(msg.timestamp) }}</div>
       </div>
     </div>
 
@@ -73,12 +74,27 @@ const props = defineProps({
   messages: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   hasMore: { type: Boolean, default: false },
+  currentUserMatrixId: { type: String, default: null },
 })
 
 defineEmits(['load-more'])
 
 const messageAreaRef = ref(null)
 const lightboxUrl = ref(null)
+
+function isOwn(msg) {
+  if (!props.currentUserMatrixId) return false
+  return msg.sender === props.currentUserMatrixId
+}
+
+function displayName(msg) {
+  if (msg.sender_display_name) return msg.sender_display_name
+  // Extract readable name from Matrix ID: @username:server -> username
+  if (msg.sender && msg.sender.startsWith('@')) {
+    return msg.sender.split(':')[0].substring(1)
+  }
+  return msg.sender || ''
+}
 
 watch(
   () => props.messages.length,
@@ -103,7 +119,6 @@ function formatTime(ts) {
 function resolveMediaUrl(mxcUrl) {
   if (!mxcUrl) return ''
   if (!mxcUrl.startsWith('mxc://')) return mxcUrl
-  // mxc://server_name/media_id -> /api/v1/messages/media/server_name/media_id
   const parts = mxcUrl.replace('mxc://', '').split('/')
   if (parts.length >= 2) {
     const baseUrl = import.meta.env.VITE_API_TARGET || ''
@@ -135,8 +150,9 @@ function openImage(url) {
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.25rem;
   position: relative;
+  background: var(--surface-ground);
 }
 
 .load-more {
@@ -151,26 +167,46 @@ function openImage(url) {
   padding: 2rem;
 }
 
-.message-item {
-  padding: 0.4rem 0;
+/* Row alignment */
+.message-row {
+  display: flex;
+  padding: 0.15rem 0;
 }
 
-.message-header {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.15rem;
+.message-row-own {
+  justify-content: flex-end;
+}
+
+.message-row-other {
+  justify-content: flex-start;
+}
+
+/* Bubble styles */
+.message-bubble {
+  max-width: 70%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  position: relative;
+}
+
+.bubble-own {
+  background: var(--primary-color);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble-other {
+  background: var(--surface-card);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+  border-bottom-left-radius: 4px;
 }
 
 .message-sender {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  margin-bottom: 0.15rem;
   color: var(--primary-color);
-}
-
-.message-time {
-  font-size: 0.7rem;
-  color: var(--text-color-secondary);
 }
 
 .message-body {
@@ -180,6 +216,18 @@ function openImage(url) {
   word-break: break-word;
 }
 
+.message-time {
+  font-size: 0.65rem;
+  opacity: 0.6;
+  text-align: right;
+  margin-top: 0.2rem;
+}
+
+.bubble-own .message-time {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Image */
 .message-image {
   display: flex;
   flex-direction: column;
@@ -187,19 +235,23 @@ function openImage(url) {
 }
 
 .message-img {
-  max-width: 400px;
-  max-height: 300px;
-  border-radius: 8px;
+  max-width: 350px;
+  max-height: 260px;
+  border-radius: 6px;
   cursor: pointer;
   object-fit: contain;
-  border: 1px solid var(--surface-border);
   transition: opacity 0.15s;
+}
+
+.bubble-other .message-img {
+  border: 1px solid var(--surface-border);
 }
 
 .message-img:hover {
   opacity: 0.9;
 }
 
+/* File */
 .message-file {
   display: flex;
   flex-direction: column;
@@ -210,28 +262,35 @@ function openImage(url) {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--surface-overlay);
-  border: 1px solid var(--surface-border);
-  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
   text-decoration: none;
-  color: var(--text-color);
-  max-width: 350px;
+  color: inherit;
+  max-width: 300px;
   transition: background 0.15s;
 }
 
+.bubble-other .file-download {
+  background: var(--surface-overlay);
+  border: 1px solid var(--surface-border);
+}
+
 .file-download:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.bubble-other .file-download:hover {
   background: var(--surface-hover);
 }
 
 .file-download .pi-file {
-  font-size: 1.2rem;
-  color: var(--primary-color);
+  font-size: 1.1rem;
 }
 
 .file-download .pi-download {
-  font-size: 0.85rem;
-  color: var(--text-color-secondary);
+  font-size: 0.8rem;
+  opacity: 0.7;
   margin-left: auto;
 }
 
@@ -243,7 +302,7 @@ function openImage(url) {
 }
 
 .file-name {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -251,8 +310,8 @@ function openImage(url) {
 }
 
 .file-size {
-  font-size: 0.7rem;
-  color: var(--text-color-secondary);
+  font-size: 0.65rem;
+  opacity: 0.7;
 }
 
 .message-text {
@@ -260,6 +319,7 @@ function openImage(url) {
   white-space: pre-wrap;
 }
 
+/* Lightbox */
 .lightbox {
   position: fixed;
   top: 0;

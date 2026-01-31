@@ -23,6 +23,18 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
+class UserMeOut(UserOut):
+    matrix_user_id: Optional[str] = None
+
+
+@router.get("/me", response_model=UserMeOut)
+async def get_me(
+    current_user: UserMapping = Depends(get_current_user),
+):
+    """Return the current authenticated user's info."""
+    return current_user
+
+
 @router.get("", response_model=List[UserOut])
 async def list_users(
     q: Optional[str] = Query(None, description="Search by display name"),

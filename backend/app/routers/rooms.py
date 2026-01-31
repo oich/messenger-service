@@ -46,10 +46,18 @@ async def list_rooms(
             .filter(RoomMapping.matrix_room_id == room_id)
             .first()
         )
+        display_name = mapping.display_name if mapping else room_id
+
+        # For DM rooms, resolve pair key to the chat partner's display name
+        if mapping and mapping.room_type == RoomType.dm and display_name and display_name.startswith("dm:"):
+            display_name = _resolve_dm_display_name(
+                display_name, current_user.matrix_user_id, db
+            )
+
         rooms.append(
             RoomOut(
                 matrix_room_id=room_id,
-                display_name=mapping.display_name if mapping else room_id,
+                display_name=display_name,
                 room_type=mapping.room_type if mapping else RoomType.general,
                 entity_type=mapping.entity_type if mapping else None,
                 entity_id=mapping.entity_id if mapping else None,
@@ -57,6 +65,42 @@ async def list_rooms(
         )
 
     return RoomListOut(rooms=rooms)
+
+
+def _resolve_dm_display_name(
+    pair_key: str, current_matrix_id: str, db: Session
+) -> str:
+    """Resolve a DM pair key like 'dm:@user1:server:@user2:server' to the partner's display name."""
+    parts = pair_key.split(":")
+    if len(parts) < 5:
+        return pair_key
+
+    matrix_user_ids = [
+        f"{parts[1]}:{parts[2]}",
+        f"{parts[3]}:{parts[4]}",
+    ]
+
+    # Find the other user (not the current one)
+    partner_matrix_id = None
+    for mid in matrix_user_ids:
+        if mid != current_matrix_id:
+            partner_matrix_id = mid
+            break
+
+    if not partner_matrix_id:
+        partner_matrix_id = matrix_user_ids[0]
+
+    partner = (
+        db.query(UserMapping)
+        .filter(UserMapping.matrix_user_id == partner_matrix_id)
+        .first()
+    )
+    if partner and partner.display_name:
+        return partner.display_name
+    if partner:
+        return partner.hub_user_id
+    # Fallback: extract username from Matrix ID (@user:server -> user)
+    return partner_matrix_id.split(":")[0].lstrip("@")
 
 
 @router.post("", response_model=RoomOut, status_code=status.HTTP_201_CREATED)

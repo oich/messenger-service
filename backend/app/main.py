@@ -4,6 +4,7 @@ import time
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import LOG_LEVEL
 from app.database import engine, SessionLocal, Base
@@ -46,31 +47,57 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start_time = time.time()
-    try:
-        response = await call_next(request)
-        return response
-    except Exception:
-        duration = time.time() - start_time
-        logger.exception(
-            "Unhandled exception during '%s %s' after %.4fs",
-            request.method,
-            request.url.path,
-            duration,
-        )
-        raise
-    finally:
-        if "response" in locals():
+class LogRequestsMiddleware:
+    """Pure ASGI middleware for request logging.
+
+    Unlike @app.middleware("http") / BaseHTTPMiddleware, this does NOT
+    buffer streaming responses, so SSE connections work correctly.
+    """
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+
+        # Skip logging for SSE streaming endpoints (don't interfere at all)
+        if path.startswith("/api/v1/events"):
+            await self.app(scope, receive, send)
+            return
+
+        start_time = time.time()
+        status_code = None
+
+        async def send_wrapper(message):
+            nonlocal status_code
+            if message["type"] == "http.response.start":
+                status_code = message.get("status", 0)
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception:
             duration = time.time() - start_time
+            method = scope.get("method", "?")
+            logger.exception(
+                "Unhandled exception during '%s %s' after %.4fs",
+                method, path, duration,
+            )
+            raise
+        else:
+            duration = time.time() - start_time
+            method = scope.get("method", "?")
             logger.info(
                 "'%s %s' - Status: %s - Duration: %.4fs",
-                request.method,
-                request.url.path,
-                response.status_code,
-                duration,
+                method, path, status_code, duration,
             )
+
+
+app.add_middleware(LogRequestsMiddleware)
 
 
 @app.on_event("startup")

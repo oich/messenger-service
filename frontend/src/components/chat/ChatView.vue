@@ -3,6 +3,7 @@
     <RoomList
       :rooms="rooms"
       :currentRoomId="currentRoomId"
+      :currentUser="currentUser"
       @select="selectRoom"
       @create="showCreateRoom = true"
       @new-message="showNewMessage = true"
@@ -21,6 +22,7 @@
         :messages="messages"
         :loading="loading"
         :hasMore="hasMore"
+        :currentUserMatrixId="currentUser?.matrix_user_id"
         @load-more="loadMoreMessages"
       />
       <MessageCompose
@@ -79,9 +81,11 @@ const {
   rooms,
   currentRoomId,
   currentRoom,
+  currentUser,
   messages,
   loading,
   hasMore,
+  fetchCurrentUser,
   fetchRooms,
   selectRoom,
   sendMessage,
@@ -98,6 +102,29 @@ const newRoomName = ref('')
 const newRoomTopic = ref('')
 const showNewMessage = ref(false)
 
+function showBrowserNotification(event) {
+  if (Notification.permission !== 'granted') return
+  if (!document.hidden) return
+  if (event.sender === currentUser.value?.matrix_user_id) return
+
+  const senderName = event.sender_display_name || event.sender || 'Neue Nachricht'
+  const body = event.msg_type === 'm.image' ? 'Bild gesendet'
+    : event.msg_type === 'm.file' ? 'Datei gesendet'
+    : event.body || ''
+
+  const notification = new Notification(senderName, {
+    body,
+    tag: event.event_id,
+    icon: '/favicon.ico',
+  })
+
+  notification.onclick = () => {
+    window.focus()
+    if (event.room_id) selectRoom(event.room_id)
+    notification.close()
+  }
+}
+
 const { connect } = useSSE((event) => {
   if (event.type === 'new_message') {
     addIncomingMessage({
@@ -112,6 +139,7 @@ const { connect } = useSSE((event) => {
       filename: event.filename || null,
       file_size: event.file_size || null,
     })
+    showBrowserNotification(event)
   }
   if (event.type === 'notification') {
     toast.add({
@@ -182,7 +210,11 @@ async function handleNewMessage({ recipients, groupName, message, file }) {
 }
 
 onMounted(async () => {
-  await fetchRooms()
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission()
+  }
+
+  await Promise.all([fetchCurrentUser(), fetchRooms()])
   connect()
   if (route.params.roomId) {
     selectRoom(route.params.roomId)

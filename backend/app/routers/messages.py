@@ -97,6 +97,23 @@ async def get_history(
             detail=f"Failed to get messages: {e}",
         )
 
+    # Build a cache of sender matrix_id -> display_name
+    sender_ids = set()
+    for event in result.get("chunk", []):
+        if event.get("type") == "m.room.message":
+            sender_ids.add(event.get("sender", ""))
+    sender_ids.discard("")
+
+    display_name_map = {}
+    if sender_ids:
+        user_mappings = (
+            db.query(UserMapping)
+            .filter(UserMapping.matrix_user_id.in_(list(sender_ids)))
+            .all()
+        )
+        for um in user_mappings:
+            display_name_map[um.matrix_user_id] = um.display_name or um.hub_user_id
+
     messages = []
     for event in result.get("chunk", []):
         if event.get("type") != "m.room.message":
@@ -105,12 +122,13 @@ async def get_history(
         file_info = content.get("info", {})
         file_url = content.get("url")
         filename = content.get("filename") or content.get("body", "")
+        sender = event.get("sender", "")
         messages.append(
             MessageOut(
                 event_id=event["event_id"],
                 room_id=room_id,
-                sender=event.get("sender", ""),
-                sender_display_name=None,
+                sender=sender,
+                sender_display_name=display_name_map.get(sender),
                 body=content.get("body", ""),
                 msg_type=content.get("msgtype", "m.text"),
                 timestamp=datetime.fromtimestamp(
@@ -260,6 +278,7 @@ async def _notify_room_members(
     )
     if not room_mapping:
         # Unknown room — fallback to broadcast
+        logger.info("SSE: Unknown room %s, broadcasting to all", room_id)
         await broker.broadcast(event_data)
         return
 
@@ -273,17 +292,23 @@ async def _notify_room_members(
             matrix_user_ids.append(f"{parts[1]}:{parts[2]}")
             matrix_user_ids.append(f"{parts[3]}:{parts[4]}")
         if matrix_user_ids:
-            from app.models import UserMapping
             users = (
                 db.query(UserMapping)
                 .filter(UserMapping.matrix_user_id.in_(matrix_user_ids))
                 .all()
+            )
+            logger.info(
+                "SSE: DM room %s — notifying %d users: %s",
+                room_id,
+                len(users),
+                [u.hub_user_id for u in users],
             )
             for user in users:
                 await broker.publish_to_user(user.hub_user_id, event_data)
             return
 
     # For non-DM rooms, broadcast to all (room membership tracking not available)
+    logger.info("SSE: Non-DM room %s, broadcasting to all", room_id)
     await broker.broadcast(event_data)
 
 
