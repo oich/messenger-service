@@ -173,7 +173,7 @@ async def create_custom_room(
     tenant_id: Optional[int],
     db: Session,
 ) -> RoomMapping:
-    """Create a custom room."""
+    """Create a custom room and auto-join invited users."""
     room_id = await matrix_client.create_room(
         access_token=creator_token,
         name=name,
@@ -181,6 +181,25 @@ async def create_custom_room(
         invite=invite_user_ids,
         preset="private_chat",
     )
+
+    # Auto-join invited users so the room appears in their room list
+    if invite_user_ids:
+        for matrix_user_id in invite_user_ids:
+            user_mapping = (
+                db.query(UserMapping)
+                .filter(UserMapping.matrix_user_id == matrix_user_id)
+                .first()
+            )
+            if user_mapping and user_mapping.matrix_access_token_encrypted:
+                try:
+                    await matrix_client.join_room(
+                        user_mapping.matrix_access_token_encrypted, room_id
+                    )
+                except MatrixClientError:
+                    logger.warning(
+                        "User %s could not auto-join room %s",
+                        matrix_user_id, room_id,
+                    )
 
     mapping = RoomMapping(
         matrix_room_id=room_id,

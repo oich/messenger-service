@@ -146,6 +146,21 @@ class MatrixClient:
             return resp.json().get("joined_rooms", [])
         raise MatrixClientError(f"List rooms failed: {resp.status_code} {resp.text}")
 
+    # --- Room members ---
+
+    async def get_room_members(
+        self, access_token: str, room_id: str
+    ) -> List[str]:
+        """Get joined member user IDs for a room."""
+        client = await self._client()
+        resp = await client.get(
+            f"/_matrix/client/v3/rooms/{room_id}/joined_members",
+            headers=self._auth_headers(access_token),
+        )
+        if resp.status_code == 200:
+            return list(resp.json().get("joined", {}).keys())
+        raise MatrixClientError(f"Get members failed: {resp.status_code} {resp.text}")
+
     # --- Messages ---
 
     async def send_message(

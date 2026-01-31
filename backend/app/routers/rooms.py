@@ -220,3 +220,100 @@ async def create_dm(
         display_name=target_mapping.display_name or target_user_id,
         room_type=RoomType.dm,
     )
+
+
+@router.post("/{room_id}/invite")
+async def invite_to_room(
+    room_id: str,
+    invite_data: dict,
+    current_user: UserMapping = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Invite a user to a room by hub_user_id."""
+    if not current_user.matrix_access_token_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not provisioned on Matrix",
+        )
+
+    hub_user_id = invite_data.get("hub_user_id")
+    if not hub_user_id:
+        raise HTTPException(status_code=400, detail="hub_user_id required")
+
+    target = (
+        db.query(UserMapping)
+        .filter(UserMapping.hub_user_id == hub_user_id)
+        .first()
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Provision if needed
+    if not target.matrix_access_token_encrypted:
+        try:
+            target = await provision_matrix_user(
+                hub_user_id=target.hub_user_id,
+                display_name=target.display_name or hub_user_id,
+                tenant_id=target.tenant_id,
+                db=db,
+            )
+        except Exception:
+            raise HTTPException(status_code=502, detail="Could not provision user")
+
+    try:
+        await matrix_client.invite_user(
+            current_user.matrix_access_token_encrypted,
+            room_id,
+            target.matrix_user_id,
+        )
+        # Auto-join so room appears in their list immediately
+        if target.matrix_access_token_encrypted:
+            await matrix_client.join_room(
+                target.matrix_access_token_encrypted, room_id
+            )
+    except MatrixClientError as e:
+        raise HTTPException(status_code=502, detail=f"Failed to invite: {e}")
+
+    return {
+        "status": "invited",
+        "hub_user_id": hub_user_id,
+        "display_name": target.display_name,
+    }
+
+
+@router.get("/{room_id}/members")
+async def get_room_members(
+    room_id: str,
+    current_user: UserMapping = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get members of a room."""
+    if not current_user.matrix_access_token_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not provisioned on Matrix",
+        )
+
+    try:
+        members = await matrix_client.get_room_members(
+            current_user.matrix_access_token_encrypted, room_id
+        )
+    except MatrixClientError as e:
+        raise HTTPException(status_code=502, detail=f"Failed to get members: {e}")
+
+    # Resolve display names from our DB
+    result = []
+    for matrix_user_id in members:
+        user = (
+            db.query(UserMapping)
+            .filter(UserMapping.matrix_user_id == matrix_user_id)
+            .first()
+        )
+        result.append({
+            "matrix_user_id": matrix_user_id,
+            "hub_user_id": user.hub_user_id if user else None,
+            "display_name": (user.display_name if user else None)
+                or matrix_user_id.split(":")[0].lstrip("@"),
+        })
+
+    return result

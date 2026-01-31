@@ -153,6 +153,29 @@ export function useMessenger() {
     }
   }
 
+  async function inviteToRoom(roomId, hubUserId) {
+    try {
+      const { data } = await api.post(
+        `/api/v1/rooms/${encodeURIComponent(roomId)}/invite`,
+        { hub_user_id: hubUserId }
+      )
+      return data
+    } catch (err) {
+      console.error('Failed to invite user:', err)
+      throw err
+    }
+  }
+
+  async function fetchRoomMembers(roomId) {
+    try {
+      const { data } = await api.get(`/api/v1/rooms/${encodeURIComponent(roomId)}/members`)
+      return data
+    } catch (err) {
+      console.error('Failed to fetch room members:', err)
+      return []
+    }
+  }
+
   async function loadMoreMessages() {
     if (!hasMore.value || !endToken.value || !currentRoomId.value) return
     await fetchMessages(currentRoomId.value, endToken.value)
@@ -206,5 +229,7 @@ export function useMessenger() {
     joinRoom,
     loadMoreMessages,
     addIncomingMessage,
+    inviteToRoom,
+    fetchRoomMembers,
   }
 }
