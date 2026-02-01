@@ -22,7 +22,7 @@ services:
     build:
       context: ./frontend
       args:
-        - VITE_HUB_URL=${HUB_URL:-http://localhost:8080}
+        - VITE_HUB_URL=${HUB_URL:-https://localhost}
     ports: !override []
     networks:
       - default
