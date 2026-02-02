@@ -20,6 +20,7 @@ HUB_ROLE_MAP = {
     "admin": "admin",
     "manager": "user",
     "user": "user",
+    "terminal": "user",
     "viewer": "viewer",
 }
 
