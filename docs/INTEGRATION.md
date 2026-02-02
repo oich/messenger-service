@@ -64,6 +64,8 @@ Header: X-Service-Token: <MESSENGER_SERVICE_TOKEN>
 
 Der Token wird ueber die Umgebungsvariable `MESSENGER_SERVICE_TOKEN` konfiguriert und muss in allen beteiligten Services identisch sein.
 
+**Automatische Verteilung:** Der Hub verteilt `MESSENGER_SERVICE_URL` und `MESSENGER_SERVICE_TOKEN` automatisch an alle Satellites ueber `satellite_config_service.py` (`build_env_dict`). Die Werte sind auch in den `docker-compose.hub.yml` Dateien aller Satellites hinterlegt, sodass sie im Standalone-Betrieb den Dev-Fallback verwenden.
+
 ---
 
 ## Notification-API (Hauptschnittstelle fuer andere Apps)
@@ -417,6 +419,15 @@ Von aussen (Browser) ist der Messenger ueber den Hub-Proxy erreichbar:
 https://<hub-host>:8085
 ```
 
+Fuer externe Matrix-Clients (FluffyChat, Element) stehen zwei Ports bereit:
+
+```
+https://<hub-host>:8448   (HTTPS, erfordert Zertifikats-Vertrauen)
+http://<hub-host>:8008    (HTTP, nur fuer lokale Netzwerk-Clients)
+```
+
+Port 8008 ist plain HTTP und gedacht fuer Clients im gleichen LAN, die kein Self-Signed-Zertifikat akzeptieren.
+
 ---
 
 ## Rollen-Mapping
@@ -429,6 +440,7 @@ Hub-Rollen werden auf Messenger-Rollen gemappt:
 | `admin` | `admin` |
 | `manager` | `user` |
 | `user` | `user` |
+| `terminal` | `user` |
 | `viewer` | `viewer` |
 
 Admin-Benutzer haben Zugriff auf das Admin-Panel (`/admin`) und die Admin-API (`/api/v1/admin/*`).
