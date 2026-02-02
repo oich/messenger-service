@@ -15,13 +15,9 @@
     </div>
     <div v-else-if="clientInfo" class="ext-content">
       <p class="ext-intro">
-        Scanne den QR-Code mit Element, FluffyChat oder einem anderen Matrix-Client.
-        Alternativ kannst du die Daten manuell eingeben.
+        Verbinde dich mit Element, FluffyChat oder einem anderen Matrix-Client.
+        Kopiere die Zugangsdaten und gib sie im Client ein.
       </p>
-
-      <div class="qr-wrap">
-        <img v-if="qrDataUrl" :src="qrDataUrl" alt="QR Code" class="qr-image" />
-      </div>
 
       <div class="credentials">
         <div class="credential-row">
@@ -66,7 +62,6 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import QRCode from 'qrcode'
 import Dialog from 'primevue/dialog'
 import api from '../../api'
 import { useToast } from 'primevue/usetoast'
@@ -81,7 +76,6 @@ defineEmits(['update:modelValue'])
 const loading = ref(false)
 const error = ref(null)
 const clientInfo = ref(null)
-const qrDataUrl = ref(null)
 const showPassword = ref(false)
 
 function togglePassword() {
@@ -108,24 +102,11 @@ async function fetchClientInfo() {
   loading.value = true
   error.value = null
   clientInfo.value = null
-  qrDataUrl.value = null
   showPassword.value = false
 
   try {
     const { data } = await api.get('/api/v1/users/me/external-client')
     clientInfo.value = data
-
-    // Generate QR code with login info
-    const qrPayload = JSON.stringify({
-      homeserver: data.homeserver,
-      user: data.username,
-      password: data.password,
-    })
-    qrDataUrl.value = await QRCode.toDataURL(qrPayload, {
-      width: 220,
-      margin: 2,
-      color: { dark: '#1a1a2e', light: '#ffffff' },
-    })
   } catch (err) {
     if (err.response?.status === 403) {
       error.value = 'Externer Client-Zugang ist fuer dein Konto nicht aktiviert. Bitte kontaktiere einen Admin.'
@@ -163,17 +144,6 @@ watch(() => props.modelValue, (open) => {
   color: var(--text-color-secondary);
   margin: 0 0 1rem 0;
   line-height: 1.4;
-}
-
-.qr-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 1rem;
-}
-
-.qr-image {
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .credentials {
