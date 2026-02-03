@@ -5,13 +5,14 @@ notifications into Matrix rooms.
 """
 
 import logging
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, status
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, status
 from sqlalchemy.orm import Session
 
 from app.config import MESSENGER_SERVICE_TOKEN
 from app.database import get_db
-from app.models import UserMapping
+from app.models import NotificationLog, UserMapping
 from app.schemas.notifications import NotificationSend, NotificationOut
 from app.services.notification_router import route_notification
 from app.services.sse_broker import broker
@@ -72,3 +73,25 @@ async def send_notification(
     })
 
     return NotificationOut.model_validate(log_entry)
+
+
+@router.get("/log", response_model=list[NotificationOut])
+async def get_notification_log(
+    db: Session = Depends(get_db),
+    _token: str = Depends(_verify_service_token),
+    source_app: Optional[str] = Query(None, description="Filter by source app"),
+    limit: int = Query(100, ge=1, le=500, description="Max number of results"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+):
+    """Get notification log entries.
+
+    Requires X-Service-Token header matching MESSENGER_SERVICE_TOKEN.
+    Returns notification history filtered by source_app if provided.
+    """
+    query = db.query(NotificationLog).order_by(NotificationLog.created_at.desc())
+
+    if source_app:
+        query = query.filter(NotificationLog.source_app == source_app)
+
+    logs = query.offset(offset).limit(limit).all()
+    return [NotificationOut.model_validate(log) for log in logs]
