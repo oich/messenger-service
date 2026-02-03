@@ -13,6 +13,11 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
 COPY . /code/
 
+# Shared packages
+COPY --from=shared hub_sync_client/ /opt/hub_sync_client/
+COPY --from=shared hub_messenger_client/ /opt/hub_messenger_client/
+COPY --from=shared satellite_api_client/ /opt/satellite_api_client/
+
 # Remove Windows line endings from start script
 RUN sed -i 's/\r$//' /code/start.sh && chmod +x /code/start.sh
 

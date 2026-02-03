@@ -7,6 +7,11 @@ services:
       - HUB_INTERNAL_URL=${HUB_INTERNAL_URL:-http://hub-backend:8000}
       - MESSENGER_SERVICE_TOKEN=${MESSENGER_SERVICE_TOKEN:-messenger-service-token-dev}
       - AUTO_MIGRATE=${AUTO_MIGRATE:-1}
+      - APP_SLUG=${APP_SLUG:-messenger-service}
+      - FERTIGUNGS_APP_URL=${FERTIGUNGS_APP_URL:-}
+      - WIKI_SERVICE_URL=${WIKI_SERVICE_URL:-}
+      - TOOL_MANAGEMENT_URL=${TOOL_MANAGEMENT_URL:-}
+      - MACHINE_MONITORING_URL=${MACHINE_MONITORING_URL:-}
       - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
     networks:
       - default

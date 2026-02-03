@@ -37,7 +37,10 @@ services:
     restart: unless-stopped
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      additional_contexts:
+        shared: ../../shared
     ports:
       - "8015:8000"
     environment:
