@@ -48,6 +48,45 @@ async def get_or_create_general_room(
     return mapping
 
 
+async def get_or_create_service_room(
+    service_name: str,
+    display_name: str,
+    admin_token: str,
+    db: Session,
+    tenant_id: Optional[int] = None,
+) -> RoomMapping:
+    """Get or create a dedicated room for a satellite service (e.g., machine-monitoring)."""
+    mapping = (
+        db.query(RoomMapping)
+        .filter(
+            RoomMapping.room_type == RoomType.service,
+            RoomMapping.entity_type == service_name,
+        )
+        .first()
+    )
+    if mapping:
+        return mapping
+
+    room_id = await matrix_client.create_room(
+        access_token=admin_token,
+        name=display_name,
+        topic=f"Benachrichtigungen von {display_name}",
+        preset="public_chat",
+    )
+
+    mapping = RoomMapping(
+        matrix_room_id=room_id,
+        room_type=RoomType.service,
+        display_name=display_name,
+        tenant_id=tenant_id,
+        entity_type=service_name,  # Use entity_type to store service name
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
 async def get_or_create_entity_room(
     entity_type: str,
     entity_id: int,

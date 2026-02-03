@@ -10,6 +10,7 @@ class RoomType(str, enum.Enum):
     dm = "dm"
     entity = "entity"
     space = "space"
+    service = "service"  # Dedicated rooms for satellite services (e.g., machine-monitoring)
 
 
 class RoomMapping(Base):

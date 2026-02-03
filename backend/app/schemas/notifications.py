@@ -9,7 +9,7 @@ class NotificationSend(BaseModel):
     event_type: str
     title: str
     body: Optional[str] = None
-    target_type: str = "general"  # general, entity_room, dm
+    target_type: str = "general"  # general, entity_room, dm, service_room
     entity_type: Optional[str] = None
     entity_id: Optional[int] = None
     target_user: Optional[str] = None  # for DM notifications

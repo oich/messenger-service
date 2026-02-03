@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models import NotificationLog, NotificationStatus, RoomMapping, RoomType, UserMapping
 from app.schemas.notifications import NotificationSend
 from app.services.matrix_client import matrix_client, MatrixClientError
-from app.services.room_manager import get_or_create_entity_room, get_or_create_general_room
+from app.services.room_manager import get_or_create_entity_room, get_or_create_general_room, get_or_create_service_room
 
 logger = logging.getLogger("notification_router")
 
@@ -74,12 +74,27 @@ async def route_notification(
     return log_entry
 
 
+SERVICE_DISPLAY_NAMES = {
+    "machine-monitoring": "Maschinenüberwachung",
+}
+
+
 async def _resolve_target_room(
     notification: NotificationSend,
     bot_token: str,
     db: Session,
 ) -> RoomMapping | None:
     """Determine which Matrix room should receive the notification."""
+    if notification.target_type == "service_room":
+        service_name = notification.source_app
+        display_name = SERVICE_DISPLAY_NAMES.get(service_name, service_name)
+        return await get_or_create_service_room(
+            service_name=service_name,
+            display_name=display_name,
+            admin_token=bot_token,
+            db=db,
+        )
+
     if notification.target_type == "entity_room" and notification.entity_type and notification.entity_id:
         display_name = f"{notification.entity_type} #{notification.entity_id}"
         return await get_or_create_entity_room(
