@@ -13,6 +13,7 @@ services:
       - TOOL_MANAGEMENT_URL=${TOOL_MANAGEMENT_URL:-}
       - MACHINE_MONITORING_URL=${MACHINE_MONITORING_URL:-}
       - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://192.168.123.3,https://localhost,http://localhost}
     networks:
       - default
       - hub_satellite_net
