@@ -153,7 +153,7 @@ async def get_or_create_dm_room(
         room_id = mapping.matrix_room_id
         for user_mapping, token in [
             (user1_mapping, user1_token),
-            (user2_mapping, user2_mapping.matrix_access_token_encrypted),
+            (user2_mapping, user2_mapping.get_matrix_access_token() if user2_mapping.matrix_access_token_encrypted else None),
         ]:
             if not token:
                 continue
@@ -183,7 +183,7 @@ async def get_or_create_dm_room(
     if user2_mapping.matrix_access_token_encrypted:
         try:
             await matrix_client.join_room(
-                user2_mapping.matrix_access_token_encrypted, room_id
+                user2_mapping.get_matrix_access_token(), room_id
             )
         except MatrixClientError:
             logger.warning(
@@ -232,7 +232,7 @@ async def create_custom_room(
             if user_mapping and user_mapping.matrix_access_token_encrypted:
                 try:
                     await matrix_client.join_room(
-                        user_mapping.matrix_access_token_encrypted, room_id
+                        user_mapping.get_matrix_access_token(), room_id
                     )
                 except MatrixClientError:
                     logger.warning(
@@ -268,7 +268,7 @@ async def ensure_user_in_room(
     if user_mapping.matrix_access_token_encrypted:
         try:
             await matrix_client.join_room(
-                user_mapping.matrix_access_token_encrypted,
+                user_mapping.get_matrix_access_token(),
                 room_mapping.matrix_room_id,
             )
         except MatrixClientError:

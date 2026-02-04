@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import MATRIX_SERVER_NAME
 from app.models import UserMapping
 from app.services.matrix_client import matrix_client, MatrixClientError
+from app.services.encryption import encrypt_token
 
 logger = logging.getLogger("user_provisioning")
 
@@ -54,21 +55,25 @@ async def provision_matrix_user(
         except MatrixClientError:
             logger.warning("Failed to set display name for %s", matrix_user_id)
 
+    # Encrypt tokens before storage
+    encrypted_access_token = encrypt_token(access_token) if access_token else ""
+    encrypted_password = encrypt_token(password)
+
     if mapping is None:
         mapping = UserMapping(
             hub_user_id=hub_user_id,
             matrix_user_id=matrix_user_id,
-            matrix_access_token_encrypted=access_token,
-            matrix_password=password,
+            matrix_access_token_encrypted=encrypted_access_token,
+            matrix_password=encrypted_password,
             tenant_id=tenant_id,
             display_name=display_name,
             is_bot=False,
         )
         db.add(mapping)
     else:
-        mapping.matrix_access_token_encrypted = access_token
+        mapping.matrix_access_token_encrypted = encrypted_access_token
         mapping.matrix_user_id = matrix_user_id
-        mapping.matrix_password = password
+        mapping.matrix_password = encrypted_password
         if display_name:
             mapping.display_name = display_name
         if tenant_id:
@@ -115,18 +120,24 @@ async def provision_bot_user(
         except MatrixClientError:
             pass
 
+    # Encrypt tokens before storage
+    encrypted_access_token = encrypt_token(access_token) if access_token else ""
+    encrypted_password = encrypt_token(password)
+
     if mapping is None:
         mapping = UserMapping(
             hub_user_id=bot_name,
             matrix_user_id=matrix_user_id,
-            matrix_access_token_encrypted=access_token,
+            matrix_access_token_encrypted=encrypted_access_token,
+            matrix_password=encrypted_password,
             tenant_id=None,
             display_name=display_name,
             is_bot=True,
         )
         db.add(mapping)
     else:
-        mapping.matrix_access_token_encrypted = access_token
+        mapping.matrix_access_token_encrypted = encrypted_access_token
+        mapping.matrix_password = encrypted_password
 
     db.commit()
     db.refresh(mapping)

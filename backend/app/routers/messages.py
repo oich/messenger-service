@@ -34,7 +34,7 @@ async def send_message(
 
     try:
         event_id = await matrix_client.send_message(
-            access_token=current_user.matrix_access_token_encrypted,
+            access_token=current_user.get_matrix_access_token(),
             room_id=msg.room_id,
             body=msg.body,
             msg_type=msg.msg_type,
@@ -86,7 +86,7 @@ async def get_history(
 
     try:
         result = await matrix_client.get_room_messages(
-            access_token=current_user.matrix_access_token_encrypted,
+            access_token=current_user.get_matrix_access_token(),
             room_id=room_id,
             limit=limit,
             from_token=from_token,
@@ -170,7 +170,7 @@ async def upload_file(
 
     try:
         mxc_uri = await matrix_client.upload_file(
-            access_token=current_user.matrix_access_token_encrypted,
+            access_token=current_user.get_matrix_access_token(),
             file_data=file_data,
             content_type=content_type,
             filename=filename,
@@ -209,7 +209,7 @@ async def upload_file(
 
     try:
         event_id = await matrix_client.send_message_event(
-            access_token=current_user.matrix_access_token_encrypted,
+            access_token=current_user.get_matrix_access_token(),
             room_id=room_id,
             content=event_content,
         )
@@ -282,9 +282,12 @@ async def _notify_room_members(
         .first()
     )
     if not room_mapping:
-        # Unknown room — fallback to broadcast
-        logger.info("SSE: Unknown room %s, broadcasting to all", room_id)
-        await broker.broadcast(event_data)
+        # Unknown room - do NOT broadcast to all users (security risk)
+        # Only log for debugging; SSE notification will be skipped
+        logger.warning(
+            "SSE: Unknown room %s - skipping notification (no broadcast to prevent data leak)",
+            room_id,
+        )
         return
 
     # For DM rooms, extract participant user IDs from the display_name key
@@ -371,7 +374,7 @@ async def get_media(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
 
     # Use the user's Matrix token for authenticated media download
-    matrix_token = user_mapping.matrix_access_token_encrypted
+    matrix_token = user_mapping.get_matrix_access_token()
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:

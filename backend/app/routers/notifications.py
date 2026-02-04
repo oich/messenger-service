@@ -57,7 +57,7 @@ async def send_notification(
 
     log_entry = await route_notification(
         notification=notification,
-        bot_token=bot.matrix_access_token_encrypted,
+        bot_token=bot.get_matrix_access_token(),
         db=db,
     )
 

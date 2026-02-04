@@ -138,11 +138,12 @@ async def admin_toggle_external_access(
         new_password = secrets.token_urlsafe(24)
         try:
             await matrix_client.change_password(
-                access_token=mapping.matrix_access_token_encrypted,
+                access_token=mapping.get_matrix_access_token(),
                 new_password=new_password,
                 logout_devices=False,
             )
-            mapping.matrix_password = new_password
+            from app.services.encryption import encrypt_token
+            mapping.matrix_password = encrypt_token(new_password)
         except MatrixClientError as e:
             logger.error("Failed to set password for %s: %s", hub_user_id, e)
             raise HTTPException(
@@ -177,7 +178,7 @@ async def admin_list_rooms(
             )
             if bot and bot.matrix_access_token_encrypted:
                 members = await matrix_client.get_room_members(
-                    bot.matrix_access_token_encrypted, room.matrix_room_id
+                    bot.get_matrix_access_token(), room.matrix_room_id
                 )
                 member_count = len(members)
         except Exception:

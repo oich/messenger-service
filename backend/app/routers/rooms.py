@@ -34,7 +34,7 @@ async def list_rooms(
 
     try:
         joined_room_ids = await matrix_client.list_joined_rooms(
-            current_user.matrix_access_token_encrypted
+            current_user.get_matrix_access_token()
         )
     except MatrixClientError:
         joined_room_ids = []
@@ -120,7 +120,7 @@ async def create_room(
         mapping = await create_custom_room(
             name=room_data.name,
             topic=room_data.topic,
-            creator_token=current_user.matrix_access_token_encrypted,
+            creator_token=current_user.get_matrix_access_token(),
             invite_user_ids=room_data.invite_users,
             tenant_id=current_user.tenant_id,
             db=db,
@@ -155,7 +155,7 @@ async def join_room(
 
     try:
         await matrix_client.join_room(
-            current_user.matrix_access_token_encrypted, room_id
+            current_user.get_matrix_access_token(), room_id
         )
     except MatrixClientError as e:
         raise HTTPException(
@@ -206,7 +206,7 @@ async def create_dm(
         mapping = await get_or_create_dm_room(
             user1_mapping=current_user,
             user2_mapping=target_mapping,
-            user1_token=current_user.matrix_access_token_encrypted,
+            user1_token=current_user.get_matrix_access_token(),
             db=db,
         )
     except MatrixClientError as e:
@@ -262,14 +262,14 @@ async def invite_to_room(
 
     try:
         await matrix_client.invite_user(
-            current_user.matrix_access_token_encrypted,
+            current_user.get_matrix_access_token(),
             room_id,
             target.matrix_user_id,
         )
         # Auto-join so room appears in their list immediately
         if target.matrix_access_token_encrypted:
             await matrix_client.join_room(
-                target.matrix_access_token_encrypted, room_id
+                target.get_matrix_access_token(), room_id
             )
     except MatrixClientError as e:
         raise HTTPException(status_code=502, detail=f"Failed to invite: {e}")
@@ -296,7 +296,7 @@ async def get_room_members(
 
     try:
         members = await matrix_client.get_room_members(
-            current_user.matrix_access_token_encrypted, room_id
+            current_user.get_matrix_access_token(), room_id
         )
     except MatrixClientError as e:
         raise HTTPException(status_code=502, detail=f"Failed to get members: {e}")
