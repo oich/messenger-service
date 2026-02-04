@@ -54,11 +54,16 @@ def _get_cors_origins() -> list[str]:
 
     # Development mode - allow common local origins
     return [
+        "http://localhost",
+        "https://localhost",
         "http://localhost:443",
         "https://localhost:443",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://localhost:8085",
+        "https://localhost:8085",
+        "http://127.0.0.1",
+        "https://127.0.0.1",
         "http://127.0.0.1:443",
         "https://127.0.0.1:443",
     ]
