@@ -104,6 +104,65 @@ async def get_or_create_service_room(
     return mapping
 
 
+async def get_or_create_notification_dm_room(
+    bot_user_id: str,
+    target_user_mapping: UserMapping,
+    bot_token: str,
+    db: Session,
+) -> RoomMapping:
+    """Get or create a DM room between the notification bot and a target user.
+
+    This is used for sending direct notification messages to specific users.
+    """
+    # Create a unique key for this bot-user pair
+    pair_key = f"notification_dm:{bot_user_id}:{target_user_mapping.matrix_user_id}"
+
+    mapping = (
+        db.query(RoomMapping)
+        .filter(
+            RoomMapping.room_type == RoomType.dm,
+            RoomMapping.display_name == pair_key,
+        )
+        .first()
+    )
+    if mapping:
+        await _ensure_bot_in_room(bot_token, mapping.matrix_room_id)
+        return mapping
+
+    # Create new DM room with the target user invited
+    room_id = await matrix_client.create_room(
+        access_token=bot_token,
+        name=f"Benachrichtigungen fuer {target_user_mapping.display_name or target_user_mapping.hub_user_id}",
+        invite=[target_user_mapping.matrix_user_id],
+        is_direct=True,
+        preset="private_chat",
+    )
+
+    # Auto-join the target user so they see the room
+    if target_user_mapping.matrix_access_token_encrypted:
+        try:
+            await matrix_client.join_room(
+                target_user_mapping.get_matrix_access_token(), room_id
+            )
+        except MatrixClientError:
+            logger.warning(
+                "User %s could not auto-join notification DM room %s",
+                target_user_mapping.matrix_user_id,
+                room_id,
+            )
+
+    mapping = RoomMapping(
+        matrix_room_id=room_id,
+        room_type=RoomType.dm,
+        display_name=pair_key,
+        tenant_id=target_user_mapping.tenant_id,
+    )
+    db.add(mapping)
+    db.commit()
+    db.refresh(mapping)
+    return mapping
+
+
 async def get_or_create_entity_room(
     entity_type: str,
     entity_id: int,

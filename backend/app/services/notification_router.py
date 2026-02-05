@@ -7,7 +7,12 @@ from sqlalchemy.orm import Session
 from app.models import NotificationLog, NotificationStatus, RoomMapping, RoomType, UserMapping
 from app.schemas.notifications import NotificationSend
 from app.services.matrix_client import matrix_client, MatrixClientError
-from app.services.room_manager import get_or_create_entity_room, get_or_create_general_room, get_or_create_service_room
+from app.services.room_manager import (
+    get_or_create_entity_room,
+    get_or_create_general_room,
+    get_or_create_notification_dm_room,
+    get_or_create_service_room,
+)
 
 logger = logging.getLogger("notification_router")
 
@@ -115,24 +120,29 @@ async def _resolve_target_room(
         )
 
     if notification.target_type == "dm" and notification.target_user:
-        # Find the user's DM room or a room they're in
+        # Find the target user
         user_mapping = (
             db.query(UserMapping)
             .filter(UserMapping.hub_user_id == notification.target_user)
             .first()
         )
         if user_mapping:
-            # Find existing DM room
-            dm_room = (
-                db.query(RoomMapping)
-                .filter(
-                    RoomMapping.room_type == RoomType.dm,
-                    RoomMapping.display_name.contains(user_mapping.matrix_user_id),
-                )
+            # Get the bot's user ID for the DM room key
+            bot_mapping = (
+                db.query(UserMapping)
+                .filter(UserMapping.hub_user_id == "notification_bot", UserMapping.is_bot == True)
                 .first()
             )
-            if dm_room:
-                return dm_room
+            bot_user_id = bot_mapping.matrix_user_id if bot_mapping else "notification_bot"
+
+            return await get_or_create_notification_dm_room(
+                bot_user_id=bot_user_id,
+                target_user_mapping=user_mapping,
+                bot_token=bot_token,
+                db=db,
+            )
+        else:
+            logger.warning("DM target user '%s' not found in messenger", notification.target_user)
 
     # Default: general room (tenant_id=1 as default)
     return await get_or_create_general_room(
