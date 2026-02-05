@@ -84,12 +84,30 @@ async def get_or_create_service_room(
         await _ensure_bot_in_room(admin_token, mapping.matrix_room_id)
         return mapping
 
+    # Get all non-bot users to invite them
+    all_users = db.query(UserMapping).filter(UserMapping.is_bot == False).all()
+    invite_user_ids = [u.matrix_user_id for u in all_users if u.matrix_user_id]
+
     room_id = await matrix_client.create_room(
         access_token=admin_token,
         name=display_name,
         topic=f"Benachrichtigungen von {display_name}",
         preset="public_chat",
+        invite=invite_user_ids if invite_user_ids else None,
     )
+
+    # Auto-join all invited users so the room appears in their list
+    for user in all_users:
+        if user.matrix_access_token_encrypted:
+            try:
+                await matrix_client.join_room(
+                    user.get_matrix_access_token(), room_id
+                )
+            except MatrixClientError:
+                logger.debug(
+                    "User %s could not auto-join service room %s",
+                    user.matrix_user_id, room_id,
+                )
 
     mapping = RoomMapping(
         matrix_room_id=room_id,
