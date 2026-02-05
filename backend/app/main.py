@@ -183,6 +183,9 @@ app.add_middleware(CORSAndLoggingMiddleware)
 
 @app.on_event("startup")
 async def on_startup():
+    # Migrate ENUM types before creating tables
+    _migrate_enum_types()
+
     # Create all tables
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created/verified.")
@@ -212,6 +215,40 @@ async def on_startup():
             )
     finally:
         db.close()
+
+
+def _migrate_enum_types() -> None:
+    """Ensure PostgreSQL ENUM types have all required values.
+
+    SQLAlchemy's create_all() doesn't update existing ENUM types,
+    so we need to add new values manually.
+    """
+    from sqlalchemy import text
+    from app.models import RoomType
+
+    with engine.connect() as conn:
+        # Get existing ENUM values
+        result = conn.execute(text(
+            "SELECT enumlabel FROM pg_enum "
+            "WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'roomtype')"
+        ))
+        existing_values = {row[0] for row in result}
+
+        if not existing_values:
+            # ENUM doesn't exist yet, will be created by create_all()
+            return
+
+        # Add missing values
+        for room_type in RoomType:
+            if room_type.value not in existing_values:
+                try:
+                    conn.execute(text(
+                        f"ALTER TYPE roomtype ADD VALUE '{room_type.value}'"
+                    ))
+                    conn.commit()
+                    logger.info("Added ENUM value 'roomtype.%s'", room_type.value)
+                except Exception as e:
+                    logger.warning("Could not add ENUM value '%s': %s", room_type.value, e)
 
 
 def _migrate_plaintext_tokens(db) -> None:
