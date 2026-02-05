@@ -63,14 +63,23 @@ async def route_notification(
     except MatrixClientError as e:
         logger.error("Failed to send notification: %s", e)
         log_entry.status = NotificationStatus.failed
-        log_entry.error_message = str(e)
+        log_entry.error_message = str(e)[:500]
     except Exception as e:
         logger.exception("Unexpected error routing notification")
         log_entry.status = NotificationStatus.failed
-        log_entry.error_message = str(e)
+        log_entry.error_message = str(e)[:500]
+        # Rollback any failed DB operations before committing the error status
+        db.rollback()
+        # Re-add the log entry after rollback
+        db.add(log_entry)
 
-    db.commit()
-    db.refresh(log_entry)
+    try:
+        db.commit()
+        db.refresh(log_entry)
+    except Exception as commit_error:
+        logger.error("Failed to commit notification log: %s", commit_error)
+        db.rollback()
+        # Return the log entry without persistence - the notification may still have been sent
     return log_entry
 
 

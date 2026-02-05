@@ -12,6 +12,19 @@ from app.services.matrix_client import matrix_client, MatrixClientError
 logger = logging.getLogger("room_manager")
 
 
+async def _ensure_bot_in_room(bot_token: str, room_id: str) -> None:
+    """Ensure the bot is a member of the room so it can send messages.
+
+    For public rooms, the bot can join directly.
+    For private rooms, this may fail if the bot is not invited.
+    """
+    try:
+        await matrix_client.join_room(bot_token, room_id)
+    except MatrixClientError as e:
+        # Log but don't fail - the bot may already be a member
+        logger.debug("Bot join attempt for room %s: %s", room_id, e)
+
+
 async def get_or_create_general_room(
     tenant_id: int,
     admin_token: str,
@@ -27,6 +40,8 @@ async def get_or_create_general_room(
         .first()
     )
     if mapping:
+        # Ensure bot can send to this room (may have been created before bot provisioning)
+        await _ensure_bot_in_room(admin_token, mapping.matrix_room_id)
         return mapping
 
     room_id = await matrix_client.create_room(
@@ -65,6 +80,8 @@ async def get_or_create_service_room(
         .first()
     )
     if mapping:
+        # Ensure bot can send to this room (may have been created before bot provisioning)
+        await _ensure_bot_in_room(admin_token, mapping.matrix_room_id)
         return mapping
 
     room_id = await matrix_client.create_room(
@@ -106,6 +123,8 @@ async def get_or_create_entity_room(
         .first()
     )
     if mapping:
+        # Ensure bot can send to this room (may have been created before bot provisioning)
+        await _ensure_bot_in_room(admin_token, mapping.matrix_room_id)
         return mapping
 
     room_id = await matrix_client.create_room(

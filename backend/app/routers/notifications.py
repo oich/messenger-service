@@ -55,22 +55,41 @@ async def send_notification(
             detail="Notification bot not provisioned. Run startup provisioning first.",
         )
 
-    log_entry = await route_notification(
-        notification=notification,
-        bot_token=bot.get_matrix_access_token(),
-        db=db,
-    )
+    try:
+        bot_token = bot.get_matrix_access_token()
+    except ValueError as e:
+        logger.error("Failed to decrypt bot token: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Notification bot token decryption failed. Re-provision the bot.",
+        )
+
+    try:
+        log_entry = await route_notification(
+            notification=notification,
+            bot_token=bot_token,
+            db=db,
+        )
+    except Exception as e:
+        logger.exception("Failed to route notification")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to route notification: {str(e)[:200]}",
+        )
 
     # Broadcast to SSE subscribers
-    await broker.broadcast({
-        "type": "notification",
-        "source_app": notification.source_app,
-        "event_type": notification.event_type,
-        "title": notification.title,
-        "body": notification.body,
-        "priority": notification.priority,
-        "room_id": log_entry.matrix_room_id,
-    })
+    try:
+        await broker.broadcast({
+            "type": "notification",
+            "source_app": notification.source_app,
+            "event_type": notification.event_type,
+            "title": notification.title,
+            "body": notification.body,
+            "priority": notification.priority,
+            "room_id": log_entry.matrix_room_id,
+        })
+    except Exception as e:
+        logger.warning("SSE broadcast failed (non-fatal): %s", e)
 
     return NotificationOut.model_validate(log_entry)
 
