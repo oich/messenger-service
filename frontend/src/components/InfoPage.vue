@@ -22,7 +22,7 @@
     </Card>
 
     <Card>
-      <template #title>Fremdlizenzen</template>
+      <template #title>Fremdlizenzen - Frontend (NPM)</template>
       <template #content>
         <DataTable :value="licenses" :paginator="true" :rows="10" stripedRows>
           <Column field="moduleName" header="Modul" sortable />
@@ -40,6 +40,41 @@
         </DataTable>
       </template>
     </Card>
+
+    <Card>
+      <template #title>Fremdlizenzen - Backend (Python)</template>
+      <template #content>
+        <p v-if="pythonLicensesError" class="text-gray-400">Nicht verfuegbar</p>
+        <DataTable v-else :value="pythonLicenses" :paginator="true" :rows="10" stripedRows>
+          <Column field="Name" header="Paket" sortable />
+          <Column field="Version" header="Version" sortable />
+          <Column field="License" header="Lizenz" sortable />
+          <Column header="URL">
+            <template #body="slotProps">
+              <a
+                v-if="slotProps.data.URL"
+                :href="slotProps.data.URL"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-primary hover:underline"
+              >{{ slotProps.data.URL }}</a>
+            </template>
+          </Column>
+        </DataTable>
+      </template>
+    </Card>
+
+    <Card>
+      <template #title>Fremdlizenzen - System (Docker/apt)</template>
+      <template #content>
+        <p v-if="systemLicensesError" class="text-gray-400">Nicht verfuegbar</p>
+        <DataTable v-else :value="systemLicenses" :paginator="true" :rows="10" stripedRows>
+          <Column field="Name" header="Paket" sortable />
+          <Column field="Version" header="Version" sortable />
+          <Column field="License" header="Lizenz" sortable />
+        </DataTable>
+      </template>
+    </Card>
   </div>
 </template>
 
@@ -48,10 +83,16 @@ import { ref, onMounted } from 'vue';
 import Card from 'primevue/card';
 import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
+import api from '../api';
 
 const licenses = ref([]);
+const pythonLicenses = ref([]);
+const systemLicenses = ref([]);
+const pythonLicensesError = ref(false);
+const systemLicensesError = ref(false);
 
 onMounted(async () => {
+  // NPM licenses (from static CSV)
   try {
     const response = await fetch('/licenses.csv');
     const blob = await response.blob();
@@ -76,6 +117,22 @@ onMounted(async () => {
     }).filter(Boolean);
   } catch (error) {
     console.error('Error fetching or parsing licenses.csv:', error);
+  }
+
+  // Python licenses (from backend API)
+  try {
+    const response = await api.get('/api/v1/licenses/python');
+    pythonLicenses.value = response.data;
+  } catch (error) {
+    pythonLicensesError.value = true;
+  }
+
+  // System licenses (from backend API)
+  try {
+    const response = await api.get('/api/v1/licenses/system');
+    systemLicenses.value = response.data;
+  } catch (error) {
+    systemLicensesError.value = true;
   }
 });
 </script>
