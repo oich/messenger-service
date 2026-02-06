@@ -45,7 +45,7 @@
         Keine Raeume vorhanden
       </div>
     </div>
-    <div v-if="currentUser?.external_client_enabled || currentUser?.role === 'admin'" class="room-list-footer">
+    <div class="room-list-footer">
       <a
         v-if="currentUser?.external_client_enabled"
         href="#"
@@ -59,6 +59,10 @@
       <router-link v-if="currentUser?.role === 'admin'" to="/admin" class="footer-link" v-tooltip="'Admin-Panel'">
         <i class="pi pi-cog"></i>
         <span>Admin</span>
+      </router-link>
+      <router-link to="/info" class="footer-link" v-tooltip="'Info und Lizenzen'">
+        <i class="pi pi-info-circle"></i>
+        <span>Info</span>
       </router-link>
     </div>
   </div>

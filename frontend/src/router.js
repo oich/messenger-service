@@ -19,6 +19,11 @@ const routes = [
     name: 'admin',
     component: AdminPanel,
   },
+  {
+    path: '/info',
+    name: 'info',
+    component: () => import('./components/InfoPage.vue'),
+  },
 ]
 
 const router = createRouter({

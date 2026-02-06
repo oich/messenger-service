@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "licenses": "npx license-checker --csv --out public/licenses.csv"
   },
   "dependencies": {
     "vue": "^3.4.0",
