@@ -1,12 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Mobile-First CSS Variables & Utilities
+   ============================================ */
+
 :root {
+  /* Touch-friendly sizes */
+  --touch-target-min: 44px;
+  --touch-target-lg: 56px;
+
+  /* Mobile navigation */
+  --mobile-header-height: 56px;
+  --mobile-nav-height: 64px;
+  --mobile-bottom-sheet-radius: 16px;
+
+  /* Safe areas for notched devices */
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+
+  /* Mobile spacing */
+  --mobile-padding: 16px;
+  --mobile-gap: 12px;
+
+  /* Surface colors (Dark Theme) */
   --surface-ground: #121212;
   --surface-section: #1e1e1e;
   --surface-card: #252525;
   --surface-overlay: #2a2a2a;
   --surface-border: #383838;
+  --surface-hover: #333333;
   --text-color: #e0e0e0;
   --text-color-secondary: #a0a0a0;
-  --primary-color: #64b5f6;
+  --primary-color: #3b82f6;
+}
+
+/* Prevent iOS zoom on input focus */
+@media screen and (max-width: 640px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  textarea,
+  select,
+  .p-inputtext,
+  .p-dropdown,
+  .p-multiselect,
+  .p-autocomplete-input {
+    font-size: 16px !important;
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: var(--touch-target-min);
+    min-width: var(--touch-target-min);
+  }
+
+  .touch-target-lg {
+    min-height: var(--touch-target-lg);
+    min-width: var(--touch-target-lg);
+  }
+}
+
+/* Safe area padding utilities */
+.pt-safe { padding-top: var(--safe-area-top); }
+.pb-safe { padding-bottom: var(--safe-area-bottom); }
+.pl-safe { padding-left: var(--safe-area-left); }
+.pr-safe { padding-right: var(--safe-area-right); }
+
+/* Override PrimeVue Aura primary palette to blue */
+:root, .dark {
+  --p-primary-50:  #eff6ff !important;
+  --p-primary-100: #dbeafe !important;
+  --p-primary-200: #bfdbfe !important;
+  --p-primary-300: #93c5fd !important;
+  --p-primary-400: #60a5fa !important;
+  --p-primary-500: #3b82f6 !important;
+  --p-primary-600: #2563eb !important;
+  --p-primary-700: #1d4ed8 !important;
+  --p-primary-800: #1e40af !important;
+  --p-primary-900: #1e3a8a !important;
 }
 
 * {
