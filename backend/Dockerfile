@@ -13,11 +13,11 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
 # Generate Python package licenses
 RUN pip install --no-cache-dir pip-licenses && \
-    pip-licenses --format=json --with-urls --output-file=/code/licenses-python.json
+    pip-licenses --format=json --with-urls --output-file=/opt/licenses-python.json
 
 # Generate system package licenses
 COPY --from=shared scripts/generate_system_licenses.py /tmp/
-RUN python /tmp/generate_system_licenses.py > /code/licenses-system.json && rm /tmp/generate_system_licenses.py
+RUN python /tmp/generate_system_licenses.py > /opt/licenses-system.json && rm /tmp/generate_system_licenses.py
 
 COPY . /code/
 

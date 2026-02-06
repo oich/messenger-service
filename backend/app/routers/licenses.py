@@ -6,8 +6,8 @@ from fastapi import APIRouter
 
 router = APIRouter(tags=["Licenses"])
 
-_PYTHON_LICENSE_FILE = "/code/licenses-python.json"
-_SYSTEM_LICENSE_FILE = "/code/licenses-system.json"
+_PYTHON_LICENSE_FILE = "/opt/licenses-python.json"
+_SYSTEM_LICENSE_FILE = "/opt/licenses-system.json"
 
 
 def _read_license_file(path: str) -> list:
