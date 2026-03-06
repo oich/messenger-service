@@ -2,13 +2,15 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
+COPY package*.json ./
+RUN npm ci
+
+# Build args AFTER npm ci so changing HUB_URL doesn't re-download packages
 ARG VITE_HUB_URL=""
 ARG VITE_API_TARGET=""
 ENV VITE_HUB_URL=${VITE_HUB_URL}
 ENV VITE_API_TARGET=${VITE_API_TARGET}
 
-COPY package*.json ./
-RUN npm ci
 COPY . .
 RUN npm run build
 
