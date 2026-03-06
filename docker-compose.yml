@@ -1,6 +1,6 @@
 services:
   conduit:
-    image: matrixconduit/matrix-conduit:latest
+    image: matrixconduit/matrix-conduit:0.8.0
     volumes:
       - conduit_data:/var/lib/conduit
     environment:
