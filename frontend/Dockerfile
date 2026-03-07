@@ -1,11 +1,11 @@
 # Stage 1: Build
-FROM node:20.18-alpine AS build
+FROM node:22.22-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
-# Build args AFTER npm ci so changing HUB_URL doesn't re-download packages
+# Build args AFTER npm install so changing HUB_URL doesn't re-download packages
 ARG VITE_HUB_URL=""
 ARG VITE_API_TARGET=""
 ENV VITE_HUB_URL=${VITE_HUB_URL}
@@ -15,7 +15,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Serve
-FROM nginx:1.27-alpine
+FROM nginx:1.29-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

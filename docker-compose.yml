@@ -22,7 +22,7 @@ services:
       - hub_satellite_net
 
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       - POSTGRES_USER=messenger
       - POSTGRES_PASSWORD=messenger
@@ -30,7 +30,7 @@ services:
     volumes:
       - messenger_db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U messenger"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-messenger}"]
       interval: 5s
       timeout: 5s
       retries: 5
