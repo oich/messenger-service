@@ -29,6 +29,21 @@ def is_sso_enabled() -> bool:
     return bool(HUB_SECRET_KEY)
 
 
+def _role_for(payload: dict) -> str:
+    """Rolle aus dem Token. Service-to-service-Tokens tragen keinen role-Claim,
+    sind aber nur mit HUB_SECRET_KEY signierbar (vertrauenswuerdiger interner
+    Aufrufer) -> admin. Formate: "satellite-service" (hub_sync_client),
+    "service:<slug>" (satellite_api_client), "<app>-service" (service_token.py).
+    """
+    role = payload.get("role")
+    if role:
+        return role
+    sub = str(payload.get("sub") or "")
+    if sub == "satellite-service" or sub.startswith("service:") or sub.endswith("-service"):
+        return "admin"
+    return "viewer"
+
+
 def validate_hub_token(token: str) -> Optional[dict]:
     if not HUB_SECRET_KEY:
         return None
@@ -49,7 +64,7 @@ def validate_hub_token(token: str) -> Optional[dict]:
         return None
     return {
         "username": username,
-        "role": payload.get("role", "viewer"),
+        "role": _role_for(payload),
         "tenant_id": payload.get("tenant_id"),
         "display_name": payload.get("display_name", username),
     }
