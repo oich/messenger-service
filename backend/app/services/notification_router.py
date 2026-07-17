@@ -71,20 +71,33 @@ async def route_notification(
         log_entry.error_message = str(e)[:500]
     except Exception as e:
         logger.exception("Unexpected error routing notification")
-        log_entry.status = NotificationStatus.failed
-        log_entry.error_message = str(e)[:500]
-        # Rollback any failed DB operations before committing the error status
+        # A failed DB operation may have poisoned the session. Roll back and
+        # rebuild a fresh log entry (the original is now detached/stale and
+        # would raise on commit), then persist in a clean transaction below.
         db.rollback()
-        # Re-add the log entry after rollback
+        log_entry = NotificationLog(
+            source_app=notification.source_app,
+            event_type=notification.event_type,
+            title=notification.title,
+            body=notification.body,
+            target_type=notification.target_type,
+            entity_type=notification.entity_type,
+            entity_id=notification.entity_id,
+            priority=notification.priority,
+            status=NotificationStatus.failed,
+            error_message=str(e)[:500],
+        )
         db.add(log_entry)
 
     try:
         db.commit()
         db.refresh(log_entry)
     except Exception as commit_error:
-        logger.error("Failed to commit notification log: %s", commit_error)
+        # Do not swallow silently: a sent notification without a persisted log
+        # must be visible in the logs so it can be reconciled.
+        logger.error("Failed to persist notification log: %s", commit_error)
         db.rollback()
-        # Return the log entry without persistence - the notification may still have been sent
+        # Return the (unpersisted) log entry - the notification may still have been sent
     return log_entry
 
 

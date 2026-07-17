@@ -16,6 +16,10 @@ from app.services.sse_broker import broker, sse_event_stream
 logger = logging.getLogger("sse")
 router = APIRouter(prefix="/api/v1/events", tags=["sse"])
 
+# One long-lived subscription queue per user for the polling fallback so we
+# don't re-subscribe (queue leak) on every poll or drain a parallel SSE stream.
+_poll_queues: dict[str, asyncio.Queue] = {}
+
 
 async def _get_sse_user(
     request: Request,
@@ -97,19 +101,22 @@ async def poll_events(
     """
     user_id = current_user.hub_user_id
 
-    # Ensure user has a subscription queue
-    if user_id not in broker._subscribers or not broker._subscribers[user_id]:
-        broker.subscribe(user_id)
+    # Reuse a single long-lived poll queue per user instead of subscribing on
+    # every request (which would leak dead queues into broker._subscribers) or
+    # draining all queues (which would steal events from a parallel SSE stream).
+    q = _poll_queues.get(user_id)
+    if q is None:
+        q = broker.subscribe(user_id)
+        _poll_queues[user_id] = q
 
     events = []
-    # Drain all queues for this user
-    for q in list(broker._subscribers.get(user_id, [])):
-        while True:
-            try:
-                event = q.get_nowait()
-                if event.get("type") != "keepalive":
-                    events.append(event)
-            except asyncio.QueueEmpty:
-                break
+    # Drain only this user's dedicated poll queue
+    while True:
+        try:
+            event = q.get_nowait()
+            if event.get("type") != "keepalive":
+                events.append(event)
+        except asyncio.QueueEmpty:
+            break
 
     return events
