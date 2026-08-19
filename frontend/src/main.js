@@ -74,7 +74,7 @@ async function initializeApp() {
       preset: Aura,
       options: {
         prefix: 'p',
-        darkMode: true,
+        darkModeSelector: '.dark',
       }
     },
     locale: {
