@@ -25,7 +25,7 @@ async function exchangeCodeForToken(code, redirectUri) {
     })
     if (response.ok) {
       const data = await response.json()
-      return data.access_token
+      return data // { access_token, refresh_token, token_type }
     }
     console.warn('Code exchange failed:', response.status)
     return null
@@ -44,9 +44,12 @@ async function initializeApp() {
 
   if (hubCode) {
     // New secure flow: exchange code for token
-    const token = await exchangeCodeForToken(hubCode, currentUrl)
-    if (token) {
-      localStorage.setItem('token', token)
+    const tokenData = await exchangeCodeForToken(hubCode, currentUrl)
+    if (tokenData) {
+      localStorage.setItem('token', tokenData.access_token)
+      if (tokenData.refresh_token) {
+        localStorage.setItem('refresh_token', tokenData.refresh_token)
+      }
     }
     urlParams.delete('hub_code')
     const cleanUrl = urlParams.toString()
@@ -62,6 +65,12 @@ async function initializeApp() {
       ? `${window.location.pathname}?${urlParams.toString()}`
       : window.location.pathname
     window.history.replaceState({}, '', cleanUrl)
+  }
+
+  // Start proactive token refresh if a refresh token exists
+  if (localStorage.getItem('refresh_token')) {
+    const { scheduleRefresh } = await import('./utils/tokenRefresh')
+    scheduleRefresh()
   }
 
   await configureApi()
