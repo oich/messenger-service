@@ -38,6 +38,10 @@ class EntityRoomCreate(BaseModel):
     entity_id: int
     display_name: str
     tenant_id: Optional[int] = None
+    # Hub username of the user opening the room - gets invited/joined so they
+    # can actually see and send messages (the room is private_chat, so
+    # creating it alone is not enough; only the bot would be a member).
+    hub_user_id: Optional[str] = None
 
 
 class EntityRoomOut(BaseModel):

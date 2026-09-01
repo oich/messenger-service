@@ -374,6 +374,38 @@ async def get_or_create_entity_room_endpoint(
             detail=f"Failed to create entity room: {e}",
         )
 
+    # Invite/join the requesting user - get_or_create_entity_room only
+    # ensures the bot is a member, but the room is private_chat, so without
+    # this the human user can see the room in their list (if invited
+    # elsewhere) but cannot actually read/send in it.
+    if room_data.hub_user_id:
+        user_mapping = (
+            db.query(UserMapping)
+            .filter(UserMapping.hub_user_id == room_data.hub_user_id)
+            .first()
+        )
+        if not user_mapping:
+            user_mapping = await provision_matrix_user(
+                hub_user_id=room_data.hub_user_id,
+                display_name=room_data.hub_user_id,
+                tenant_id=room_data.tenant_id,
+                db=db,
+            )
+        elif not user_mapping.matrix_access_token_encrypted:
+            user_mapping = await provision_matrix_user(
+                hub_user_id=user_mapping.hub_user_id,
+                display_name=user_mapping.display_name or room_data.hub_user_id,
+                tenant_id=user_mapping.tenant_id,
+                db=db,
+            )
+        try:
+            await ensure_user_in_room(user_mapping, mapping, bot_token)
+        except MatrixClientError as e:
+            logger.warning(
+                "Could not add user %s to entity room %s: %s",
+                room_data.hub_user_id, mapping.matrix_room_id, e,
+            )
+
     deep_link_path = f"/room/{quote(mapping.matrix_room_id, safe='')}"
     deep_link_url = f"{MESSENGER_FRONTEND_URL}{deep_link_path}" if MESSENGER_FRONTEND_URL else None
 
