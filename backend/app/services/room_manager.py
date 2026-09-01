@@ -202,6 +202,13 @@ async def get_or_create_entity_room(
     if mapping:
         # Ensure bot can send to this room (may have been created before bot provisioning)
         await _ensure_bot_in_room(admin_token, mapping.matrix_room_id)
+        # Keep the display name in sync (e.g. project renamed since the room
+        # was first created) - the messenger UI reads this DB field, not the
+        # Matrix room name state.
+        if display_name and mapping.display_name != display_name:
+            mapping.display_name = display_name
+            db.commit()
+            db.refresh(mapping)
         return mapping
 
     room_id = await matrix_client.create_room(
