@@ -5,6 +5,7 @@ When absent, SSO is disabled and the satellite operates standalone.
 """
 
 import logging
+import os
 from typing import Optional
 
 from jose import JWTError, jwt
@@ -14,6 +15,31 @@ from app.config import HUB_SECRET_KEY
 logger = logging.getLogger("hub_sso")
 
 HUB_ALGORITHM = "HS256"
+
+# Mindest-Rolle, die der Hub-User fuer DIESEN Satelliten braucht (muss mit der
+# App.required_role im Hub-App-Registry uebereinstimmen - siehe
+# hub-backend/app/services/app_registry_service.py). Ohne diesen Check
+# akzeptierte der Satellit jedes gueltig signierte Hub-JWT unabhaengig von der
+# App-Berechtigung im Hub (/permissions). None/unset = keine Einschraenkung.
+HUB_MIN_ROLE: Optional[str] = os.getenv("HUB_MIN_ROLE") or None
+
+ROLE_HIERARCHY = {
+    "super_admin": 0,
+    "admin": 1,
+    "manager": 2,
+    "user": 3,
+    "terminal": 4,
+    "viewer": 5,
+}
+
+
+def _meets_min_role(role: str) -> bool:
+    if not HUB_MIN_ROLE:
+        return True
+    if role in ("admin", "super_admin"):
+        return True
+    return ROLE_HIERARCHY.get(role, 99) <= ROLE_HIERARCHY.get(HUB_MIN_ROLE, 99)
+
 
 HUB_ROLE_MAP = {
     "super_admin": "admin",
@@ -62,9 +88,13 @@ def validate_hub_token(token: str) -> Optional[dict]:
     username = payload.get("sub")
     if not username:
         return None
+    role = _role_for(payload)
+    if not _meets_min_role(role):
+        logger.warning("Hub token role '%s' insufficient for HUB_MIN_ROLE '%s'", role, HUB_MIN_ROLE)
+        return None
     return {
         "username": username,
-        "role": _role_for(payload),
+        "role": role,
         "tenant_id": payload.get("tenant_id"),
         "display_name": payload.get("display_name", username),
     }
