@@ -36,9 +36,21 @@
       >
         <i :class="roomIcon(room)" class="room-icon"></i>
         <div class="room-info">
-          <span class="room-name">{{ room.display_name || room.matrix_room_id }}</span>
+          <div class="room-name-row">
+            <span class="room-name">{{ room.display_name || room.matrix_room_id }}</span>
+            <span v-if="entityLabel(room)" class="entity-chip">{{ entityLabel(room) }}</span>
+          </div>
           <span v-if="room.last_message" class="room-last-msg">{{ room.last_message }}</span>
         </div>
+        <button
+          v-if="room.source_url"
+          type="button"
+          class="back-link"
+          v-tooltip.left="'Zur Quelle oeffnen'"
+          @click.stop="openSource(room.source_url)"
+        >
+          <i class="pi pi-external-link"></i>
+        </button>
         <span v-if="room.unread_count > 0" class="room-badge">{{ room.unread_count }}</span>
       </div>
       <div v-if="rooms.length === 0" class="room-empty">
@@ -93,6 +105,27 @@ function roomIcon(room) {
     case 'entity': return 'pi pi-box'
     case 'space': return 'pi pi-folder'
     default: return 'pi pi-comments'
+  }
+}
+
+const ENTITY_LABELS = {
+  project: 'Projekt',
+  complaint: 'Reklamation',
+  machine: 'Maschine',
+}
+
+function entityLabel(room) {
+  if (room.room_type !== 'entity' || !room.entity_type) return null
+  const label = ENTITY_LABELS[room.entity_type]
+    || (room.entity_type.charAt(0).toUpperCase() + room.entity_type.slice(1))
+  return room.entity_id ? `${label} #${room.entity_id}` : label
+}
+
+function openSource(url) {
+  if (typeof window.api?.openAppWindow === 'function') {
+    window.api.openAppWindow({ url, name: 'Quelle' })
+  } else {
+    window.open(url, '_blank')
   }
 }
 </script>
@@ -207,12 +240,46 @@ function roomIcon(room) {
   flex-direction: column;
 }
 
+.room-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 .room-name {
   font-size: 0.875rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.entity-chip {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+}
+
+.back-link {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.back-link:hover {
+  color: var(--primary-color);
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
 }
 
 .room-last-msg {

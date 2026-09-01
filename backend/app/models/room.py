@@ -23,4 +23,8 @@ class RoomMapping(Base):
     tenant_id = Column(Integer, nullable=True)
     entity_type = Column(String(100), nullable=True)
     entity_id = Column(Integer, nullable=True)
+    # Deep link back into the source app's entity view (e.g. the fertigungs-app
+    # project). Lets the messenger UI offer a "back to source" link without
+    # needing to know each app's URL scheme.
+    source_url = Column(String(1000), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

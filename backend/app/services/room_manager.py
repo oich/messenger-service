@@ -188,8 +188,19 @@ async def get_or_create_entity_room(
     admin_token: str,
     db: Session,
     tenant_id: Optional[int] = None,
+    source_url: Optional[str] = None,
+    update_display_name: bool = False,
 ) -> RoomMapping:
-    """Get or create a room for a specific entity (machine, project, etc.)."""
+    """Get or create a room for a specific entity (machine, project, etc.).
+
+    Multiple satellites can share the same entity room (e.g. fertigungs-app
+    and engineering-app both linking to the same project). Whichever caller
+    creates the room sets its initial display_name/source_url; afterwards,
+    only a caller passing update_display_name=True may rename it, so a
+    "secondary" satellite (e.g. engineering-app, which lacks the customer
+    number needed for fertigungs-app's naming convention) can't clobber the
+    authoritative name on every open.
+    """
     mapping = (
         db.query(RoomMapping)
         .filter(
@@ -202,11 +213,14 @@ async def get_or_create_entity_room(
     if mapping:
         # Ensure bot can send to this room (may have been created before bot provisioning)
         await _ensure_bot_in_room(admin_token, mapping.matrix_room_id)
-        # Keep the display name in sync (e.g. project renamed since the room
-        # was first created) - the messenger UI reads this DB field, not the
-        # Matrix room name state.
-        if display_name and mapping.display_name != display_name:
+        changed = False
+        if update_display_name and display_name and mapping.display_name != display_name:
             mapping.display_name = display_name
+            changed = True
+        if source_url and mapping.source_url != source_url:
+            mapping.source_url = source_url
+            changed = True
+        if changed:
             db.commit()
             db.refresh(mapping)
         return mapping
@@ -225,6 +239,7 @@ async def get_or_create_entity_room(
         tenant_id=tenant_id,
         entity_type=entity_type,
         entity_id=entity_id,
+        source_url=source_url,
     )
     db.add(mapping)
     db.commit()

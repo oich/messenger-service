@@ -70,6 +70,7 @@ async def list_rooms(
                 room_type=mapping.room_type if mapping else RoomType.general,
                 entity_type=mapping.entity_type if mapping else None,
                 entity_id=mapping.entity_id if mapping else None,
+                source_url=mapping.source_url if mapping else None,
             )
         )
 
@@ -367,6 +368,8 @@ async def get_or_create_entity_room_endpoint(
             admin_token=bot_token,
             db=db,
             tenant_id=room_data.tenant_id,
+            source_url=room_data.source_url,
+            update_display_name=room_data.update_display_name,
         )
     except MatrixClientError as e:
         raise HTTPException(
@@ -374,36 +377,38 @@ async def get_or_create_entity_room_endpoint(
             detail=f"Failed to create entity room: {e}",
         )
 
-    # Invite/join the requesting user - get_or_create_entity_room only
+    # Invite/join the requested users - get_or_create_entity_room only
     # ensures the bot is a member, but the room is private_chat, so without
-    # this the human user can see the room in their list (if invited
-    # elsewhere) but cannot actually read/send in it.
-    if room_data.hub_user_id:
+    # this they could see the room in their list (if invited elsewhere) but
+    # not actually read/send in it. Additive only: a user no longer in
+    # hub_user_ids (e.g. unassigned from a project) is NOT removed - that
+    # stays a deliberate manual action, not an automatic side effect.
+    for hub_user_id in (room_data.hub_user_ids or []):
         user_mapping = (
             db.query(UserMapping)
-            .filter(UserMapping.hub_user_id == room_data.hub_user_id)
+            .filter(UserMapping.hub_user_id == hub_user_id)
             .first()
         )
-        if not user_mapping:
-            user_mapping = await provision_matrix_user(
-                hub_user_id=room_data.hub_user_id,
-                display_name=room_data.hub_user_id,
-                tenant_id=room_data.tenant_id,
-                db=db,
-            )
-        elif not user_mapping.matrix_access_token_encrypted:
-            user_mapping = await provision_matrix_user(
-                hub_user_id=user_mapping.hub_user_id,
-                display_name=user_mapping.display_name or room_data.hub_user_id,
-                tenant_id=user_mapping.tenant_id,
-                db=db,
-            )
         try:
+            if not user_mapping:
+                user_mapping = await provision_matrix_user(
+                    hub_user_id=hub_user_id,
+                    display_name=hub_user_id,
+                    tenant_id=room_data.tenant_id,
+                    db=db,
+                )
+            elif not user_mapping.matrix_access_token_encrypted:
+                user_mapping = await provision_matrix_user(
+                    hub_user_id=user_mapping.hub_user_id,
+                    display_name=user_mapping.display_name or hub_user_id,
+                    tenant_id=user_mapping.tenant_id,
+                    db=db,
+                )
             await ensure_user_in_room(user_mapping, mapping, bot_token)
         except MatrixClientError as e:
             logger.warning(
                 "Could not add user %s to entity room %s: %s",
-                room_data.hub_user_id, mapping.matrix_room_id, e,
+                hub_user_id, mapping.matrix_room_id, e,
             )
 
     deep_link_path = f"/room/{quote(mapping.matrix_room_id, safe='')}"
@@ -412,6 +417,7 @@ async def get_or_create_entity_room_endpoint(
     return EntityRoomOut(
         matrix_room_id=mapping.matrix_room_id,
         display_name=mapping.display_name,
+        source_url=mapping.source_url,
         deep_link_path=deep_link_path,
         deep_link_url=deep_link_url,
     )
