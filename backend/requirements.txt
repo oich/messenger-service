@@ -21,3 +21,6 @@ python-dotenv>=1.0.0
 
 # App-specific: Encryption for messages
 cryptography>=41.0.0
+
+# Push notifications (Firebase Cloud Messaging) for the mobile app
+firebase-admin>=6.5.0

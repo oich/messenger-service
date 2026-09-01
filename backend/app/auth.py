@@ -1,18 +1,28 @@
 import logging
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from app import models, security
-from app.config import SECRET_KEY, ALGORITHM
+from app.config import MESSENGER_SERVICE_TOKEN, SECRET_KEY, ALGORITHM
 from app.database import get_db
 
 logger = logging.getLogger("auth")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+
+
+def verify_service_token(x_service_token: str = Header(...)) -> str:
+    """Verify the cross-app service token used by other satellites."""
+    if x_service_token != MESSENGER_SERVICE_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid service token",
+        )
+    return x_service_token
 
 
 async def _get_or_create_hub_shadow_user(hub_info: dict, db: Session) -> models.UserMapping:

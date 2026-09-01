@@ -61,6 +61,15 @@ MATRIX_HS_TOKEN = os.getenv("MATRIX_HS_TOKEN", "messenger-hs-token-change-me")
 # Cross-App Notification
 MESSENGER_SERVICE_TOKEN = os.getenv("MESSENGER_SERVICE_TOKEN", "messenger-service-token-change-me")
 
+# Public URL of the messenger-service frontend, used to build deep links
+# (e.g. "https://hub.example.com:8085") returned to other satellites.
+MESSENGER_FRONTEND_URL = os.getenv("MESSENGER_FRONTEND_URL", "").rstrip("/")
+
+# Firebase Cloud Messaging (push notifications to the mobile app). Disabled by
+# default - requires a Firebase project set up by the operator (not automatable).
+FCM_ENABLED = os.getenv("FCM_ENABLED", "false").strip().lower() in ("1", "true", "yes")
+FIREBASE_CREDENTIALS_JSON = os.getenv("FIREBASE_CREDENTIALS_JSON", "")
+
 # CORS - use whitelist in production
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
 

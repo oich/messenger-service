@@ -2,19 +2,28 @@
 
 import logging
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app.auth import get_current_user, verify_service_token
+from app.config import MESSENGER_FRONTEND_URL
 from app.database import get_db
 from app.models import UserMapping, RoomMapping, RoomType
-from app.schemas.rooms import RoomCreate, RoomOut, RoomListOut
+from app.schemas.rooms import (
+    RoomCreate,
+    RoomOut,
+    RoomListOut,
+    EntityRoomCreate,
+    EntityRoomOut,
+)
 from app.services.matrix_client import matrix_client, MatrixClientError
 from app.services.room_manager import (
     create_custom_room,
     get_or_create_general_room,
     get_or_create_dm_room,
+    get_or_create_entity_room,
     ensure_user_in_room,
 )
 from app.services.user_provisioning import provision_matrix_user
@@ -317,3 +326,60 @@ async def get_room_members(
         })
 
     return result
+
+
+@router.post("/entity", response_model=EntityRoomOut)
+async def get_or_create_entity_room_endpoint(
+    room_data: EntityRoomCreate,
+    db: Session = Depends(get_db),
+    _token: str = Depends(verify_service_token),
+):
+    """Get or create a room for an entity owned by another satellite (e.g. a project).
+
+    Requires X-Service-Token header matching MESSENGER_SERVICE_TOKEN. Idempotent:
+    calling this again for the same (entity_type, entity_id) returns the same room.
+    """
+    bot = (
+        db.query(UserMapping)
+        .filter(UserMapping.hub_user_id == "notification_bot", UserMapping.is_bot == True)
+        .first()
+    )
+    if not bot or not bot.matrix_access_token_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Notification bot not provisioned. Run startup provisioning first.",
+        )
+
+    try:
+        bot_token = bot.get_matrix_access_token()
+    except ValueError as e:
+        logger.error("Failed to decrypt bot token: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Notification bot token decryption failed. Re-provision the bot.",
+        )
+
+    try:
+        mapping = await get_or_create_entity_room(
+            entity_type=room_data.entity_type,
+            entity_id=room_data.entity_id,
+            display_name=room_data.display_name,
+            admin_token=bot_token,
+            db=db,
+            tenant_id=room_data.tenant_id,
+        )
+    except MatrixClientError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to create entity room: {e}",
+        )
+
+    deep_link_path = f"/room/{quote(mapping.matrix_room_id, safe='')}"
+    deep_link_url = f"{MESSENGER_FRONTEND_URL}{deep_link_path}" if MESSENGER_FRONTEND_URL else None
+
+    return EntityRoomOut(
+        matrix_room_id=mapping.matrix_room_id,
+        display_name=mapping.display_name,
+        deep_link_path=deep_link_path,
+        deep_link_url=deep_link_url,
+    )

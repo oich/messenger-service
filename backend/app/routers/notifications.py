@@ -7,28 +7,19 @@ notifications into Matrix rooms.
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.config import MESSENGER_SERVICE_TOKEN
+from app.auth import verify_service_token as _verify_service_token
 from app.database import get_db
 from app.models import NotificationLog, UserMapping
 from app.schemas.notifications import NotificationSend, NotificationOut
 from app.services.notification_router import route_notification
+from app.services.push_notifier import push_to_room_members
 from app.services.sse_broker import broker
 
 logger = logging.getLogger("notifications")
 router = APIRouter(prefix="/api/v1/notifications", tags=["notifications"])
-
-
-def _verify_service_token(x_service_token: str = Header(...)) -> str:
-    """Verify the cross-app service token."""
-    if x_service_token != MESSENGER_SERVICE_TOKEN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid service token",
-        )
-    return x_service_token
 
 
 @router.post("/send", response_model=NotificationOut)
@@ -90,6 +81,15 @@ async def send_notification(
         })
     except Exception as e:
         logger.warning("SSE broadcast failed (non-fatal): %s", e)
+
+    if log_entry.matrix_room_id:
+        try:
+            await push_to_room_members(
+                log_entry.matrix_room_id, bot_token,
+                notification.title, notification.body or "", db,
+            )
+        except Exception as e:
+            logger.warning("FCM push failed (non-fatal): %s", e)
 
     return NotificationOut.model_validate(log_entry)
 

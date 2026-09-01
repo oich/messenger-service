@@ -13,6 +13,7 @@ from app.database import get_db
 from app.models import UserMapping, RoomMapping
 from app.schemas.messages import MessageSend, MessageOut, MessageHistory
 from app.services.matrix_client import matrix_client, MatrixClientError
+from app.services.push_notifier import push_to_room_members
 from app.services.sse_broker import broker
 
 logger = logging.getLogger("messages")
@@ -55,12 +56,13 @@ async def send_message(
         timestamp=datetime.now(timezone.utc),
     )
 
-    # Notify room members via SSE
+    # Notify room members via SSE + push
     await _notify_room_members(
         room_id=msg.room_id,
         event_id=event_id,
         sender=current_user.matrix_user_id,
         sender_display_name=current_user.display_name,
+        sender_token=current_user.get_matrix_access_token(),
         body=msg.body,
         msg_type=msg.msg_type,
         db=db,
@@ -237,6 +239,7 @@ async def upload_file(
         event_id=event_id,
         sender=current_user.matrix_user_id,
         sender_display_name=current_user.display_name,
+        sender_token=current_user.get_matrix_access_token(),
         body=body or filename,
         msg_type=msg_type,
         db=db,
@@ -253,6 +256,7 @@ async def _notify_room_members(
     event_id: str,
     sender: str,
     sender_display_name: str | None,
+    sender_token: str,
     body: str,
     msg_type: str,
     db: Session,
@@ -260,7 +264,10 @@ async def _notify_room_members(
     filename: str | None = None,
     file_size: int | None = None,
 ) -> None:
-    """Send SSE notification to all members of a room."""
+    """Send SSE + push notification to all members of a room."""
+    push_title = sender_display_name or sender.split(":")[0].lstrip("@")
+    push_body = body if msg_type == "m.text" else f"Datei: {filename or body}"
+
     event_data = {
         "type": "new_message",
         "room_id": room_id,
@@ -313,11 +320,19 @@ async def _notify_room_members(
             )
             for user in users:
                 await broker.publish_to_user(user.hub_user_id, event_data)
+            await push_to_room_members(
+                room_id, sender_token, push_title, push_body, db,
+                exclude_matrix_user_id=sender,
+            )
             return
 
     # For non-DM rooms, broadcast to all (room membership tracking not available)
     logger.info("SSE: Non-DM room %s, broadcasting to all", room_id)
     await broker.broadcast(event_data)
+    await push_to_room_members(
+        room_id, sender_token, push_title, push_body, db,
+        exclude_matrix_user_id=sender,
+    )
 
 
 @router.get("/media/{server_name}/{media_id}")
