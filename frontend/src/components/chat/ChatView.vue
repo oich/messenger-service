@@ -349,7 +349,6 @@ const showExternalClient = ref(false)
 
 // --- Notifications ---
 function showBrowserNotification(event) {
-  if (Notification.permission !== 'granted') return
   if (!document.hidden) return
   if (event.sender === currentUser.value?.matrix_user_id) return
 
@@ -357,6 +356,16 @@ function showBrowserNotification(event) {
   const body = event.msg_type === 'm.image' ? 'Bild gesendet'
     : event.msg_type === 'm.file' ? 'Datei gesendet'
     : event.body || ''
+
+  // Android app: native local notification (see mobile/android's
+  // MainActivity.java). The WebView there does not implement the
+  // standard Notification Web API used below at all.
+  if (typeof window.api?.showNotification === 'function') {
+    window.api.showNotification({ title: senderName, body })
+    return
+  }
+
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
 
   const notification = new Notification(senderName, {
     body,
