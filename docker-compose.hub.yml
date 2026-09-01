@@ -4,7 +4,9 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql://messenger:messenger@db:5432/messenger}
       - SECRET_KEY=${SECRET_KEY:-messenger-dev-secret}
       - HUB_SECRET_KEY=${HUB_SECRET_KEY:-hub-dev-secret-change-me}
-      - HUB_MIN_ROLE=${HUB_MIN_ROLE:-user}
+      # hub_sso.py::HUB_ROLE_MAP mappt terminal -> "user" (voller Zugriff),
+      # "user" als Mindest-Rolle wuerde diese Nutzer aussperren.
+      - HUB_MIN_ROLE=${HUB_MIN_ROLE:-terminal}
       - HUB_INTERNAL_URL=${HUB_INTERNAL_URL:-http://hub-backend:8000}
       - MESSENGER_SERVICE_TOKEN=${MESSENGER_SERVICE_TOKEN:-messenger-service-token-dev}
       - AUTO_MIGRATE=${AUTO_MIGRATE:-1}
