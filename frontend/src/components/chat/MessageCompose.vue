@@ -82,14 +82,24 @@ const emojiPopoverRef = ref(null)
 const hasNativeCamera = typeof window.api?.takePhoto === 'function'
 const cameraBusy = ref(false)
 
+// Decodes a data: URL into a File without fetch() - the CSP connect-src
+// here ('self' https: wss:) does not allow the data: scheme, so
+// fetch(dataUrl) is silently blocked by the browser.
+function dataUrlToFile(dataUrl, filename) {
+  const [header, base64] = dataUrl.split(',')
+  const mime = /data:(.*?);base64/.exec(header)?.[1] || 'image/jpeg'
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return new File([bytes], filename, { type: mime })
+}
+
 async function takePhoto() {
   if (cameraBusy.value) return
   cameraBusy.value = true
   try {
     const dataUrl = await window.api.takePhoto()
-    const blob = await (await fetch(dataUrl)).blob()
-    const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' })
-    setFile(file)
+    setFile(dataUrlToFile(dataUrl, `foto_${Date.now()}.jpg`))
   } catch (e) {
     // User cancelled the camera, or capture failed - not an error worth
     // surfacing as a toast, just leave the composer as-is.
