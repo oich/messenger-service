@@ -29,6 +29,9 @@
           class="hidden-file-input"
           @change="onFileSelect"
         />
+        <button v-if="hasNativeCamera" class="compose-action-btn" @click="takePhoto" title="Foto aufnehmen" :disabled="cameraBusy">
+          <i class="pi" :class="cameraBusy ? 'pi-spin pi-spinner' : 'pi-camera'"></i>
+        </button>
         <div class="emoji-container">
           <button class="compose-action-btn" @click="toggleEmojiPicker" title="Emoji">
             <i class="pi pi-face-smile"></i>
@@ -73,6 +76,28 @@ const sending = ref(false)
 const textareaRef = ref(null)
 const fileInputRef = ref(null)
 const emojiPopoverRef = ref(null)
+
+// Native camera bridge (Android app only, see mobile/android's
+// MainActivity.java - injected as window.api on the trusted Hub host).
+const hasNativeCamera = typeof window.api?.takePhoto === 'function'
+const cameraBusy = ref(false)
+
+async function takePhoto() {
+  if (cameraBusy.value) return
+  cameraBusy.value = true
+  try {
+    const dataUrl = await window.api.takePhoto()
+    const blob = await (await fetch(dataUrl)).blob()
+    const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' })
+    setFile(file)
+  } catch (e) {
+    // User cancelled the camera, or capture failed - not an error worth
+    // surfacing as a toast, just leave the composer as-is.
+    console.warn('Kamera-Aufnahme fehlgeschlagen oder abgebrochen:', e.message)
+  } finally {
+    cameraBusy.value = false
+  }
+}
 
 const canSend = computed(() => text.value.trim() || selectedFile.value)
 
