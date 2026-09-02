@@ -41,6 +41,10 @@ export function useMessenger() {
     const room = rooms.value.find(r => r.matrix_room_id === roomId)
     if (room) room.unread_count = 0
     await fetchMessages(roomId)
+    // Persist the read marker server-side, so other satellites (e.g. the
+    // fertigungs-app Werkercockpit/Gantt envelope icon) can show accurate
+    // unread state without their own SSE connection to the messenger.
+    api.post(`/api/v1/rooms/${encodeURIComponent(roomId)}/read`).catch(() => {})
   }
 
   async function fetchMessages(roomId, fromToken = null) {

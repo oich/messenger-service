@@ -10,15 +10,19 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user, verify_service_token
 from app.config import MESSENGER_FRONTEND_URL
 from app.database import get_db
-from app.models import UserMapping, RoomMapping, RoomType, Team
+from app.models import UserMapping, RoomMapping, RoomType, Team, RoomRead
 from app.schemas.rooms import (
     RoomCreate,
     RoomOut,
     RoomListOut,
     EntityRoomCreate,
     EntityRoomOut,
+    UnreadStatusRequest,
+    UnreadStatusResponse,
+    UnreadStatusItem,
 )
 from app.schemas.teams import TeamInviteResult
+from app.services.read_tracking import mark_room_read
 from app.services.matrix_client import matrix_client, MatrixClientError
 from app.services.room_manager import (
     create_custom_room,
@@ -366,6 +370,76 @@ async def invite_team_to_room(
             result.failed.append(hub_user_id)
 
     return result
+
+
+@router.post("/{room_id}/read")
+async def mark_room_read_endpoint(
+    room_id: str,
+    current_user: UserMapping = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Mark a room as read up to now for the current user - drives the
+    cross-satellite unread indicator (see POST /rooms/unread-status)."""
+    mark_room_read(current_user.hub_user_id, room_id, db)
+    return {"ok": True}
+
+
+@router.post("/unread-status", response_model=UnreadStatusResponse)
+async def get_unread_status(
+    body: UnreadStatusRequest,
+    db: Session = Depends(get_db),
+    _token: str = Depends(verify_service_token),
+):
+    """Batch has-messages/unread lookup for another satellite's entities
+    (e.g. every project card in fertigungs-app's Werkercockpit/Gantt),
+    relative to one Hub user's own read markers.
+    """
+    items: list[UnreadStatusItem] = []
+    if not body.entities:
+        return UnreadStatusResponse(items=items)
+
+    room_by_entity: dict[tuple[str, int], RoomMapping | None] = {}
+    room_ids: list[str] = []
+    for ref in body.entities:
+        room = (
+            db.query(RoomMapping)
+            .filter(
+                RoomMapping.entity_type == ref.entity_type,
+                RoomMapping.entity_id == ref.entity_id,
+            )
+            .first()
+        )
+        room_by_entity[(ref.entity_type, ref.entity_id)] = room
+        if room:
+            room_ids.append(room.matrix_room_id)
+
+    read_by_room: dict[str, object] = {}
+    if room_ids:
+        reads = (
+            db.query(RoomRead)
+            .filter(
+                RoomRead.hub_user_id == body.hub_user_id,
+                RoomRead.matrix_room_id.in_(room_ids),
+            )
+            .all()
+        )
+        read_by_room = {r.matrix_room_id: r.last_read_at for r in reads}
+
+    for ref in body.entities:
+        room = room_by_entity[(ref.entity_type, ref.entity_id)]
+        has_messages = bool(room and room.last_message_at)
+        unread = False
+        if has_messages:
+            last_read = read_by_room.get(room.matrix_room_id)
+            unread = last_read is None or last_read < room.last_message_at
+        items.append(UnreadStatusItem(
+            entity_type=ref.entity_type,
+            entity_id=ref.entity_id,
+            has_messages=has_messages,
+            unread=unread,
+        ))
+
+    return UnreadStatusResponse(items=items)
 
 
 @router.get("/{room_id}/members")

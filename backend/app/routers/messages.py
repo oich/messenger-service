@@ -14,6 +14,7 @@ from app.models import UserMapping, RoomMapping
 from app.schemas.messages import MessageSend, MessageOut, MessageHistory
 from app.services.matrix_client import matrix_client, MatrixClientError
 from app.services.push_notifier import push_to_room_members
+from app.services.read_tracking import mark_room_read
 from app.services.sse_broker import broker
 
 logger = logging.getLogger("messages")
@@ -56,7 +57,7 @@ async def send_message(
         timestamp=datetime.now(timezone.utc),
     )
 
-    # Notify room members via SSE + push
+    # Notify room members via SSE + push (also bumps RoomMapping.last_message_at)
     await _notify_room_members(
         room_id=msg.room_id,
         event_id=event_id,
@@ -67,6 +68,11 @@ async def send_message(
         msg_type=msg.msg_type,
         db=db,
     )
+
+    # The sender has, by definition, read up to their own message - must run
+    # AFTER last_message_at is bumped above, or the sender's own message
+    # would immediately show as "unread" for themselves.
+    mark_room_read(current_user.hub_user_id, msg.room_id, db)
 
     return message_out
 
@@ -248,6 +254,8 @@ async def upload_file(
         file_size=file_size,
     )
 
+    mark_room_read(current_user.hub_user_id, room_id, db)
+
     return message_out
 
 
@@ -296,6 +304,9 @@ async def _notify_room_members(
             room_id,
         )
         return
+
+    room_mapping.last_message_at = datetime.now(timezone.utc)
+    db.commit()
 
     # For DM rooms, extract participant user IDs from the display_name key
     if room_mapping.room_type == "dm" and room_mapping.display_name:

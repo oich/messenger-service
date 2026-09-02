@@ -62,3 +62,27 @@ class EntityRoomOut(BaseModel):
     source_url: Optional[str] = None
     deep_link_path: str
     deep_link_url: Optional[str] = None
+
+
+class EntityRef(BaseModel):
+    entity_type: str
+    entity_id: int
+
+
+class UnreadStatusRequest(BaseModel):
+    """Cross-satellite read/unread lookup for a batch of entities (e.g. every
+    project shown on a Gantt page), relative to one Hub user."""
+
+    hub_user_id: str
+    entities: List[EntityRef]
+
+
+class UnreadStatusItem(BaseModel):
+    entity_type: str
+    entity_id: int
+    has_messages: bool = False
+    unread: bool = False
+
+
+class UnreadStatusResponse(BaseModel):
+    items: List[UnreadStatusItem]

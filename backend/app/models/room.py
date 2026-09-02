@@ -27,4 +27,7 @@ class RoomMapping(Base):
     # project). Lets the messenger UI offer a "back to source" link without
     # needing to know each app's URL scheme.
     source_url = Column(String(1000), nullable=True)
+    # Bumped on every message/upload into this room - compared against a
+    # user's RoomRead.last_read_at to derive unread indicators cross-satellite.
+    last_message_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
