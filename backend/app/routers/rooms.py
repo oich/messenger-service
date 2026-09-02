@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user, verify_service_token
 from app.config import MESSENGER_FRONTEND_URL
 from app.database import get_db
-from app.models import UserMapping, RoomMapping, RoomType
+from app.models import UserMapping, RoomMapping, RoomType, Team
 from app.schemas.rooms import (
     RoomCreate,
     RoomOut,
@@ -18,6 +18,7 @@ from app.schemas.rooms import (
     EntityRoomCreate,
     EntityRoomOut,
 )
+from app.schemas.teams import TeamInviteResult
 from app.services.matrix_client import matrix_client, MatrixClientError
 from app.services.room_manager import (
     create_custom_room,
@@ -232,24 +233,16 @@ async def create_dm(
     )
 
 
-@router.post("/{room_id}/invite")
-async def invite_to_room(
+async def _invite_hub_user_to_room(
+    hub_user_id: str,
     room_id: str,
-    invite_data: dict,
-    current_user: UserMapping = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Invite a user to a room by hub_user_id."""
-    if not current_user.matrix_access_token_encrypted:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User not provisioned on Matrix",
-        )
-
-    hub_user_id = invite_data.get("hub_user_id")
-    if not hub_user_id:
-        raise HTTPException(status_code=400, detail="hub_user_id required")
-
+    inviter_token: str,
+    db: Session,
+) -> UserMapping:
+    """Provision (if needed), invite, and auto-join a single hub_user_id into
+    a room. Shared by the single-user and team bulk-invite endpoints below.
+    Raises HTTPException on failure (404 unknown user, 502 Matrix error).
+    """
     target = (
         db.query(UserMapping)
         .filter(UserMapping.hub_user_id == hub_user_id)
@@ -272,7 +265,7 @@ async def invite_to_room(
 
     try:
         await matrix_client.invite_user(
-            current_user.get_matrix_access_token(),
+            inviter_token,
             room_id,
             target.matrix_user_id,
         )
@@ -284,11 +277,95 @@ async def invite_to_room(
     except MatrixClientError as e:
         raise HTTPException(status_code=502, detail=f"Failed to invite: {e}")
 
+    return target
+
+
+@router.post("/{room_id}/invite")
+async def invite_to_room(
+    room_id: str,
+    invite_data: dict,
+    current_user: UserMapping = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Invite a user to a room by hub_user_id."""
+    if not current_user.matrix_access_token_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not provisioned on Matrix",
+        )
+
+    hub_user_id = invite_data.get("hub_user_id")
+    if not hub_user_id:
+        raise HTTPException(status_code=400, detail="hub_user_id required")
+
+    target = await _invite_hub_user_to_room(
+        hub_user_id, room_id, current_user.get_matrix_access_token(), db
+    )
+
     return {
         "status": "invited",
         "hub_user_id": hub_user_id,
         "display_name": target.display_name,
     }
+
+
+@router.post("/{room_id}/invite-team", response_model=TeamInviteResult)
+async def invite_team_to_room(
+    room_id: str,
+    invite_data: dict,
+    current_user: UserMapping = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Bulk-invite every member of a fixed team into a room.
+
+    Additive only, like the single-user invite: members already in the room
+    are skipped, and a per-member failure does not abort the rest.
+    """
+    if not current_user.matrix_access_token_encrypted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not provisioned on Matrix",
+        )
+
+    team_id = invite_data.get("team_id")
+    if not team_id:
+        raise HTTPException(status_code=400, detail="team_id required")
+
+    team = db.query(Team).filter(Team.id == team_id).first()
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    try:
+        existing_members = {
+            m for m in await matrix_client.get_room_members(
+                current_user.get_matrix_access_token(), room_id
+            )
+        }
+    except MatrixClientError:
+        existing_members = set()
+
+    inviter_token = current_user.get_matrix_access_token()
+    result = TeamInviteResult()
+    for hub_user_id in (team.member_hub_user_ids or []):
+        target_mapping = (
+            db.query(UserMapping)
+            .filter(UserMapping.hub_user_id == hub_user_id)
+            .first()
+        )
+        if target_mapping and target_mapping.matrix_user_id in existing_members:
+            result.already_member.append(hub_user_id)
+            continue
+        try:
+            await _invite_hub_user_to_room(hub_user_id, room_id, inviter_token, db)
+            result.invited.append(hub_user_id)
+        except HTTPException as e:
+            logger.warning(
+                "Could not invite team member %s to room %s: %s",
+                hub_user_id, room_id, e.detail,
+            )
+            result.failed.append(hub_user_id)
+
+    return result
 
 
 @router.get("/{room_id}/members")

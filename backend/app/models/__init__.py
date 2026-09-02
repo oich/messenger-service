@@ -2,6 +2,7 @@ from app.models.user_mapping import UserMapping
 from app.models.room import RoomMapping, RoomType
 from app.models.notification import NotificationLog, NotificationStatus
 from app.models.device_token import DeviceToken
+from app.models.team import Team
 
 __all__ = [
     "UserMapping",
@@ -10,4 +11,5 @@ __all__ = [
     "NotificationLog",
     "NotificationStatus",
     "DeviceToken",
+    "Team",
 ]

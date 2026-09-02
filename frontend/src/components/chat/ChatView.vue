@@ -147,6 +147,24 @@
             </div>
           </div>
         </div>
+        <div v-if="teams.length > 0" class="form-field">
+          <label>Team einladen</label>
+          <div class="team-invite-list">
+            <div v-for="team in teams" :key="team.id" class="team-invite-item">
+              <div class="team-invite-info">
+                <span class="team-invite-name">{{ team.name }}</span>
+                <span class="team-invite-count">{{ team.members.length }} Mitglieder</span>
+              </div>
+              <Button
+                label="Einladen"
+                size="small"
+                outlined
+                :loading="teamInviteLoading === team.id"
+                @click="handleInviteTeam(team)"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </Dialog>
 
@@ -217,6 +235,8 @@ const {
   addIncomingMessage,
   inviteToRoom,
   fetchRoomMembers,
+  fetchTeams,
+  inviteTeamToRoom,
 } = useMessenger()
 
 // --- Room members ---
@@ -314,8 +334,16 @@ const inviteFilteredUsers = computed(() => {
   return users.slice(0, 10)
 })
 
+const teams = ref([])
+const teamInviteLoading = ref(null)
+
+async function loadTeams() {
+  teams.value = await fetchTeams()
+}
+
 function openInviteDialog() {
   loadAllUsers()
+  loadTeams()
   showInviteDialog.value = true
 }
 
@@ -338,6 +366,30 @@ async function handleInviteUser(user) {
     await loadRoomMembers(currentRoomId.value)
   } catch {
     toast.add({ severity: 'error', summary: 'Fehler', detail: 'Nutzer konnte nicht eingeladen werden', life: 3000 })
+  }
+}
+
+async function handleInviteTeam(team) {
+  if (!currentRoomId.value) return
+  teamInviteLoading.value = team.id
+  try {
+    const result = await inviteTeamToRoom(currentRoomId.value, team.id)
+    const parts = []
+    if (result.invited.length) parts.push(`${result.invited.length} eingeladen`)
+    if (result.already_member.length) parts.push(`${result.already_member.length} bereits Mitglied`)
+    if (result.failed.length) parts.push(`${result.failed.length} fehlgeschlagen`)
+    toast.add({
+      severity: result.failed.length ? 'warn' : 'success',
+      summary: `Team "${team.name}"`,
+      detail: parts.join(', ') || 'Keine Mitglieder',
+      life: 4000,
+    })
+    showInviteDialog.value = false
+    await loadRoomMembers(currentRoomId.value)
+  } catch {
+    toast.add({ severity: 'error', summary: 'Fehler', detail: 'Team konnte nicht eingeladen werden', life: 3000 })
+  } finally {
+    teamInviteLoading.value = null
   }
 }
 
@@ -731,6 +783,41 @@ onMounted(async () => {
 .suggestion-item i {
   color: var(--text-color-secondary);
   font-size: 0.85rem;
+}
+
+.team-invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.team-invite-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: var(--surface-ground);
+}
+
+.team-invite-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.team-invite-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.team-invite-count {
+  font-size: 0.72rem;
+  color: var(--text-color-secondary);
 }
 
 /* Member list dialog */

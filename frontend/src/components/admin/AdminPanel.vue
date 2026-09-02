@@ -125,6 +125,43 @@
       </div>
     </div>
 
+    <!-- Teams Tab -->
+    <div v-if="activeTab === 'teams'" class="tab-content">
+      <div class="toolbar">
+        <Button label="Neues Team" icon="pi pi-plus" size="small" @click="openCreateTeam" />
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Mitglieder</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="team in teams" :key="team.id">
+              <td>{{ team.name }}</td>
+              <td class="small">
+                {{ team.members.map(m => m.display_name || m.hub_user_id).join(', ') || '-' }}
+              </td>
+              <td>
+                <button class="icon-btn" @click="openEditTeam(team)" title="Bearbeiten">
+                  <i class="pi pi-pencil"></i>
+                </button>
+                <button class="icon-btn danger" @click="confirmDeleteTeam(team)" title="Loeschen">
+                  <i class="pi pi-trash"></i>
+                </button>
+              </td>
+            </tr>
+            <tr v-if="teams.length === 0">
+              <td colspan="3" class="empty-row">Keine Teams angelegt</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- System Tab -->
     <div v-if="activeTab === 'system'" class="tab-content">
       <div class="stats-grid">
@@ -184,6 +221,71 @@
       </template>
     </Dialog>
 
+    <!-- Create/Edit Team Dialog -->
+    <Dialog
+      v-model:visible="showTeamDialog"
+      :header="editTeamTarget ? 'Team bearbeiten' : 'Neues Team'"
+      modal
+      :style="{ width: '460px' }"
+      @hide="resetTeamDialog"
+    >
+      <div class="dialog-form">
+        <div class="form-field">
+          <label>Name</label>
+          <InputText v-model="teamName" class="w-full" placeholder="z.B. Konstruktion" />
+        </div>
+        <div class="form-field">
+          <label>Mitglieder</label>
+          <div class="invite-area">
+            <div class="invite-chips">
+              <span v-for="user in teamMembers" :key="user.hub_user_id" class="invite-chip">
+                {{ user.display_name || user.hub_user_id }}
+                <button class="chip-remove" @click="removeTeamMember(user)">
+                  <i class="pi pi-times"></i>
+                </button>
+              </span>
+              <input
+                v-model="teamMemberSearch"
+                type="text"
+                class="invite-input"
+                placeholder="Nutzer suchen..."
+                @focus="teamMemberShowSuggestions = true"
+              />
+            </div>
+            <div v-if="teamMemberShowSuggestions && teamMemberFilteredUsers.length > 0" class="user-suggestions">
+              <div
+                v-for="user in teamMemberFilteredUsers"
+                :key="user.hub_user_id"
+                class="suggestion-item"
+                @mousedown.prevent="addTeamMember(user)"
+              >
+                <i class="pi pi-user"></i>
+                <span>{{ user.display_name || user.hub_user_id }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Abbrechen" severity="secondary" @click="showTeamDialog = false" />
+        <Button label="Speichern" @click="saveTeam" :disabled="!teamName.trim()" />
+      </template>
+    </Dialog>
+
+    <!-- Delete Team Confirmation Dialog -->
+    <Dialog
+      v-model:visible="showDeleteTeamConfirm"
+      header="Team loeschen"
+      modal
+      :style="{ width: '400px' }"
+    >
+      <p>Soll das Team <strong>{{ deleteTeamTarget?.name }}</strong> wirklich geloescht werden?</p>
+      <template #footer>
+        <Button label="Abbrechen" severity="secondary" @click="showDeleteTeamConfirm = false" />
+        <Button label="Loeschen" severity="danger" @click="executeDeleteTeam" />
+      </template>
+    </Dialog>
+
     <!-- Delete Room Confirmation Dialog -->
     <Dialog
       v-model:visible="showDeleteConfirm"
@@ -213,6 +315,7 @@ const toast = useToast()
 const tabs = [
   { key: 'users', label: 'Nutzer', icon: 'pi pi-users' },
   { key: 'rooms', label: 'Raeume', icon: 'pi pi-comments' },
+  { key: 'teams', label: 'Teams', icon: 'pi pi-sitemap' },
   { key: 'system', label: 'System', icon: 'pi pi-server' },
 ]
 
@@ -333,6 +436,119 @@ async function executeDeleteRoom() {
   }
 }
 
+// ── Teams ──────────────────────────────────────────────
+const teams = ref([])
+const allUsers = ref([])
+
+async function fetchTeams() {
+  try {
+    const { data } = await api.get('/api/v1/teams')
+    teams.value = data
+  } catch {}
+}
+
+async function loadAllUsers() {
+  if (allUsers.value.length === 0) {
+    try {
+      const { data } = await api.get('/api/v1/users')
+      allUsers.value = data
+    } catch {}
+  }
+}
+
+const showTeamDialog = ref(false)
+const editTeamTarget = ref(null)
+const teamName = ref('')
+const teamMembers = ref([])
+const teamMemberSearch = ref('')
+const teamMemberShowSuggestions = ref(false)
+
+const teamMemberFilteredUsers = computed(() => {
+  const selectedIds = new Set(teamMembers.value.map(u => u.hub_user_id))
+  let users = allUsers.value.filter(u => !selectedIds.has(u.hub_user_id))
+  if (teamMemberSearch.value.trim()) {
+    const q = teamMemberSearch.value.toLowerCase()
+    users = users.filter(u =>
+      (u.display_name || '').toLowerCase().includes(q) ||
+      u.hub_user_id.toLowerCase().includes(q)
+    )
+  }
+  return users.slice(0, 10)
+})
+
+function addTeamMember(user) {
+  if (!teamMembers.value.some(u => u.hub_user_id === user.hub_user_id)) {
+    teamMembers.value.push(user)
+  }
+  teamMemberSearch.value = ''
+  teamMemberShowSuggestions.value = false
+}
+
+function removeTeamMember(user) {
+  teamMembers.value = teamMembers.value.filter(u => u.hub_user_id !== user.hub_user_id)
+}
+
+function openCreateTeam() {
+  loadAllUsers()
+  editTeamTarget.value = null
+  showTeamDialog.value = true
+}
+
+function openEditTeam(team) {
+  loadAllUsers()
+  editTeamTarget.value = team
+  teamName.value = team.name
+  teamMembers.value = team.members.map(m => ({ hub_user_id: m.hub_user_id, display_name: m.display_name }))
+  showTeamDialog.value = true
+}
+
+function resetTeamDialog() {
+  editTeamTarget.value = null
+  teamName.value = ''
+  teamMembers.value = []
+  teamMemberSearch.value = ''
+  teamMemberShowSuggestions.value = false
+}
+
+async function saveTeam() {
+  const payload = {
+    name: teamName.value.trim(),
+    member_hub_user_ids: teamMembers.value.map(u => u.hub_user_id),
+  }
+  try {
+    if (editTeamTarget.value) {
+      await api.patch(`/api/v1/teams/${editTeamTarget.value.id}`, payload)
+    } else {
+      await api.post('/api/v1/teams', payload)
+    }
+    showTeamDialog.value = false
+    await fetchTeams()
+    toast.add({ severity: 'success', summary: 'Gespeichert', life: 3000 })
+  } catch (err) {
+    const detail = err.response?.data?.detail || 'Team konnte nicht gespeichert werden'
+    toast.add({ severity: 'error', summary: 'Fehler', detail, life: 4000 })
+  }
+}
+
+const showDeleteTeamConfirm = ref(false)
+const deleteTeamTarget = ref(null)
+
+function confirmDeleteTeam(team) {
+  deleteTeamTarget.value = team
+  showDeleteTeamConfirm.value = true
+}
+
+async function executeDeleteTeam() {
+  try {
+    await api.delete(`/api/v1/teams/${deleteTeamTarget.value.id}`)
+    teams.value = teams.value.filter(t => t.id !== deleteTeamTarget.value.id)
+    showDeleteTeamConfirm.value = false
+    toast.add({ severity: 'success', summary: 'Team geloescht', life: 3000 })
+  } catch {
+    toast.add({ severity: 'error', summary: 'Fehler', detail: 'Team konnte nicht geloescht werden', life: 3000 })
+  }
+}
+
 // ── System Stats ───────────────────────────────────────
 const stats = ref({
   total_users: 0,
@@ -366,7 +582,7 @@ function formatDate(iso) {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchUsers(), fetchRooms(), fetchStats()])
+  await Promise.all([fetchUsers(), fetchRooms(), fetchTeams(), fetchStats()])
   statsInterval = setInterval(fetchStats, 30000)
 })
 
@@ -628,6 +844,10 @@ onUnmounted(() => {
   border-color: var(--red-500, #ef4444);
 }
 
+.icon-btn + .icon-btn {
+  margin-left: 0.3rem;
+}
+
 /* Stats grid */
 .stats-grid {
   display: grid;
@@ -699,5 +919,100 @@ onUnmounted(() => {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-color-secondary);
+}
+
+.invite-area {
+  position: relative;
+}
+
+.invite-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  background: var(--surface-ground);
+  min-height: 38px;
+  align-items: center;
+}
+
+.invite-chips:focus-within {
+  border-color: var(--primary-color);
+}
+
+.invite-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--primary-color);
+  color: #fff;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 12px;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.7);
+  padding: 0;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+}
+
+.chip-remove:hover {
+  color: #fff;
+}
+
+.invite-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.85rem;
+  color: var(--text-color);
+  flex: 1;
+  min-width: 100px;
+  padding: 0.1rem 0;
+}
+
+.invite-input::placeholder {
+  color: var(--text-color-secondary);
+}
+
+.user-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 2px;
+}
+
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.1s;
+}
+
+.suggestion-item:hover {
+  background: var(--surface-hover);
+}
+
+.suggestion-item i {
+  color: var(--text-color-secondary);
+  font-size: 0.85rem;
 }
 </style>

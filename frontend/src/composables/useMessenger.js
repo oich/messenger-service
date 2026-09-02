@@ -176,6 +176,29 @@ export function useMessenger() {
     }
   }
 
+  async function fetchTeams() {
+    try {
+      const { data } = await api.get('/api/v1/teams')
+      return data
+    } catch (err) {
+      console.error('Failed to fetch teams:', err)
+      return []
+    }
+  }
+
+  async function inviteTeamToRoom(roomId, teamId) {
+    try {
+      const { data } = await api.post(
+        `/api/v1/rooms/${encodeURIComponent(roomId)}/invite-team`,
+        { team_id: teamId }
+      )
+      return data
+    } catch (err) {
+      console.error('Failed to invite team:', err)
+      throw err
+    }
+  }
+
   async function loadMoreMessages() {
     if (!hasMore.value || !endToken.value || !currentRoomId.value) return
     await fetchMessages(currentRoomId.value, endToken.value)
@@ -231,5 +254,7 @@ export function useMessenger() {
     addIncomingMessage,
     inviteToRoom,
     fetchRoomMembers,
+    fetchTeams,
+    inviteTeamToRoom,
   }
 }
