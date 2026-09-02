@@ -349,6 +349,25 @@ const showExternalClient = ref(false)
 
 // --- Notifications ---
 function showBrowserNotification(event) {
+  // Android app: native local notification (see mobile/android's
+  // MainActivity.java). Uses its own hidden-check (window.api.isHidden(),
+  // tied to the real Activity lifecycle via onPause/onResume) instead of
+  // document.hidden below - that reflects WebView *render* visibility,
+  // which Android does not tie to the Activity's foreground state for a
+  // plain WebView, so it may never become true here even when genuinely
+  // backgrounded. The WebView also does not implement the standard
+  // Notification Web API used further below at all.
+  if (typeof window.api?.showNotification === 'function') {
+    if (typeof window.api.isHidden === 'function' && !window.api.isHidden()) return
+    if (event.sender === currentUser.value?.matrix_user_id) return
+    const senderName = event.sender_display_name || event.sender || 'Neue Nachricht'
+    const body = event.msg_type === 'm.image' ? 'Bild gesendet'
+      : event.msg_type === 'm.file' ? 'Datei gesendet'
+      : event.body || ''
+    window.api.showNotification({ title: senderName, body })
+    return
+  }
+
   if (!document.hidden) return
   if (event.sender === currentUser.value?.matrix_user_id) return
 
@@ -356,14 +375,6 @@ function showBrowserNotification(event) {
   const body = event.msg_type === 'm.image' ? 'Bild gesendet'
     : event.msg_type === 'm.file' ? 'Datei gesendet'
     : event.body || ''
-
-  // Android app: native local notification (see mobile/android's
-  // MainActivity.java). The WebView there does not implement the
-  // standard Notification Web API used below at all.
-  if (typeof window.api?.showNotification === 'function') {
-    window.api.showNotification({ title: senderName, body })
-    return
-  }
 
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return
 
