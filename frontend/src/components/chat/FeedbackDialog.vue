@@ -55,6 +55,7 @@ function resetForm() {
 }
 
 async function submit() {
+  if (submitting.value) return
   if (!body.value?.trim()) {
     error.value = 'Bitte eine Beschreibung eingeben.'
     return
