@@ -2,6 +2,8 @@ import { ref, computed } from 'vue'
 import api from '../api'
 
 const rooms = ref([])
+const archivedCount = ref(0)
+const showArchived = ref(false)
 const currentRoomId = ref(null)
 const messages = ref([])
 const loading = ref(false)
@@ -25,11 +27,19 @@ export function useMessenger() {
 
   async function fetchRooms() {
     try {
-      const { data } = await api.get('/api/v1/rooms')
+      const { data } = await api.get('/api/v1/rooms', {
+        params: { include_archived: showArchived.value },
+      })
       rooms.value = data.rooms
+      archivedCount.value = data.archived_count || 0
     } catch (err) {
       console.error('Failed to fetch rooms:', err)
     }
+  }
+
+  async function toggleShowArchived() {
+    showArchived.value = !showArchived.value
+    await fetchRooms()
   }
 
   async function selectRoom(roomId) {
@@ -239,6 +249,8 @@ export function useMessenger() {
 
   return {
     rooms,
+    archivedCount,
+    showArchived,
     currentRoomId,
     currentRoom,
     currentUser,
@@ -247,6 +259,7 @@ export function useMessenger() {
     hasMore,
     fetchCurrentUser,
     fetchRooms,
+    toggleShowArchived,
     selectRoom,
     sendMessage,
     uploadFile,

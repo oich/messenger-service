@@ -31,3 +31,7 @@ class RoomMapping(Base):
     # user's RoomRead.last_read_at to derive unread indicators cross-satellite.
     last_message_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Set when the linked entity (e.g. a fertigungs-app project) gets
+    # archived - hides the room from the default room list without leaving
+    # it or losing history (see routers/rooms.py entity archive/unarchive).
+    archived_at = Column(DateTime(timezone=True), nullable=True)

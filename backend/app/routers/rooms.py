@@ -1,6 +1,7 @@
 """Room listing, creation, and joining endpoints."""
 
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote
 
@@ -17,6 +18,7 @@ from app.schemas.rooms import (
     RoomListOut,
     EntityRoomCreate,
     EntityRoomOut,
+    EntityRef,
     UnreadStatusRequest,
     UnreadStatusResponse,
     UnreadStatusItem,
@@ -39,10 +41,13 @@ router = APIRouter(prefix="/api/v1/rooms", tags=["rooms"])
 
 @router.get("", response_model=RoomListOut)
 async def list_rooms(
+    include_archived: bool = False,
     current_user: UserMapping = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """List all rooms the user has access to."""
+    """List rooms the user has access to. Archived rooms (see the entity
+    archive/unarchive endpoints below) are excluded by default - pass
+    include_archived=true to get them back (e.g. for an "Archiv" view)."""
     if not current_user.matrix_access_token_encrypted:
         return RoomListOut(rooms=[])
 
@@ -54,12 +59,19 @@ async def list_rooms(
         joined_room_ids = []
 
     rooms = []
+    archived_count = 0
     for room_id in joined_room_ids:
         mapping = (
             db.query(RoomMapping)
             .filter(RoomMapping.matrix_room_id == room_id)
             .first()
         )
+        is_archived = bool(mapping and mapping.archived_at)
+        if is_archived:
+            archived_count += 1
+            if not include_archived:
+                continue
+
         display_name = mapping.display_name if mapping else room_id
 
         # For DM rooms, resolve pair key to the chat partner's display name
@@ -76,10 +88,11 @@ async def list_rooms(
                 entity_type=mapping.entity_type if mapping else None,
                 entity_id=mapping.entity_id if mapping else None,
                 source_url=mapping.source_url if mapping else None,
+                is_archived=is_archived,
             )
         )
 
-    return RoomListOut(rooms=rooms)
+    return RoomListOut(rooms=rooms, archived_count=archived_count)
 
 
 def _resolve_dm_display_name(
@@ -572,3 +585,50 @@ async def get_or_create_entity_room_endpoint(
         deep_link_path=deep_link_path,
         deep_link_url=deep_link_url,
     )
+
+
+@router.post("/entity/archive")
+async def archive_entity_rooms(
+    entity: EntityRef,
+    db: Session = Depends(get_db),
+    _token: str = Depends(verify_service_token),
+):
+    """Archive the room(s) linked to an entity (e.g. a project that just got
+    archived) - hides it from the default room list without leaving the
+    room or losing history. Idempotent; a no-op if no room exists yet for
+    this entity. Requires X-Service-Token, same as the entity room endpoint.
+    """
+    mappings = (
+        db.query(RoomMapping)
+        .filter(
+            RoomMapping.entity_type == entity.entity_type,
+            RoomMapping.entity_id == entity.entity_id,
+        )
+        .all()
+    )
+    now = datetime.now(timezone.utc)
+    for mapping in mappings:
+        mapping.archived_at = now
+    db.commit()
+    return {"archived": len(mappings)}
+
+
+@router.post("/entity/unarchive")
+async def unarchive_entity_rooms(
+    entity: EntityRef,
+    db: Session = Depends(get_db),
+    _token: str = Depends(verify_service_token),
+):
+    """Reverse archive_entity_rooms (e.g. when a project is reopened)."""
+    mappings = (
+        db.query(RoomMapping)
+        .filter(
+            RoomMapping.entity_type == entity.entity_type,
+            RoomMapping.entity_id == entity.entity_id,
+        )
+        .all()
+    )
+    for mapping in mappings:
+        mapping.archived_at = None
+    db.commit()
+    return {"unarchived": len(mappings)}

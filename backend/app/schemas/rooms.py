@@ -26,10 +26,14 @@ class RoomOut(BaseModel):
     unread_count: int = 0
     last_message: Optional[str] = None
     last_message_ts: Optional[datetime] = None
+    is_archived: bool = False
 
 
 class RoomListOut(BaseModel):
     rooms: List[RoomOut]
+    # Count of archived rooms hidden from `rooms` (list_rooms only includes
+    # them when include_archived=true) - lets the UI show "Archiv (N)".
+    archived_count: int = 0
 
 
 class EntityRoomCreate(BaseModel):

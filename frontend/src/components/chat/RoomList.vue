@@ -26,12 +26,20 @@
         v-tooltip="'Neuer Raum'"
       />
     </div>
+    <div
+      v-if="archivedCount > 0"
+      class="archive-toggle"
+      @click="$emit('toggle-archived')"
+    >
+      <i :class="showArchived ? 'pi pi-chevron-up' : 'pi pi-chevron-down'"></i>
+      <span>{{ showArchived ? 'Archiv ausblenden' : `Archiv anzeigen (${archivedCount})` }}</span>
+    </div>
     <div class="room-list-items">
       <div
         v-for="room in rooms"
         :key="room.matrix_room_id"
         class="room-item"
-        :class="{ active: room.matrix_room_id === currentRoomId }"
+        :class="{ active: room.matrix_room_id === currentRoomId, archived: room.is_archived }"
         @click="$emit('select', room.matrix_room_id)"
       >
         <i :class="roomIcon(room)" class="room-icon"></i>
@@ -39,6 +47,7 @@
           <div class="room-name-row">
             <span class="room-name">{{ room.display_name || room.matrix_room_id }}</span>
             <span v-if="entityLabel(room)" class="entity-chip">{{ entityLabel(room) }}</span>
+            <span v-if="room.is_archived" class="archived-chip">Archiviert</span>
           </div>
           <span v-if="room.last_message" class="room-last-msg">{{ room.last_message }}</span>
         </div>
@@ -72,6 +81,10 @@
         <i class="pi pi-cog"></i>
         <span>Admin</span>
       </router-link>
+      <a href="#" class="footer-link" @click.prevent="$emit('open-feedback')" v-tooltip="'Feedback / Bug melden'">
+        <i class="pi pi-comment"></i>
+        <span>Feedback</span>
+      </a>
       <router-link to="/info" class="footer-link" v-tooltip="'Info und Lizenzen'">
         <i class="pi pi-info-circle"></i>
         <span>Info</span>
@@ -88,9 +101,11 @@ const props = defineProps({
   rooms: { type: Array, default: () => [] },
   currentRoomId: { type: String, default: null },
   currentUser: { type: Object, default: null },
+  archivedCount: { type: Number, default: 0 },
+  showArchived: { type: Boolean, default: false },
 })
 
-defineEmits(['select', 'create', 'new-message', 'open-external-client'])
+defineEmits(['select', 'create', 'new-message', 'open-external-client', 'open-feedback', 'toggle-archived'])
 
 const userInitials = computed(() => {
   const name = props.currentUser?.display_name || props.currentUser?.hub_user_id || '?'
@@ -139,6 +154,17 @@ function openSource(url) {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/* On mobile the RoomList and the open chat are shown one at a time (see
+   ChatView.vue's isMobile/mobileShowChat) - when it's the only thing
+   visible it should use the full width instead of staying pinned to 280px. */
+@media (max-width: 768px) {
+  .room-list {
+    width: 100%;
+    min-width: 0;
+    border-right: none;
+  }
 }
 
 .room-list-user {
@@ -224,6 +250,36 @@ function openSource(url) {
 .room-item.active {
   background: var(--surface-card);
   border-left: 3px solid var(--primary-color);
+}
+
+.room-item.archived {
+  opacity: 0.6;
+}
+
+.archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.78rem;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.archive-toggle:hover {
+  color: var(--text-color);
+  background: var(--surface-hover);
+}
+
+.archived-chip {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-color-secondary);
+  background: var(--surface-hover, rgba(0, 0, 0, 0.06));
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
 }
 
 .room-icon {

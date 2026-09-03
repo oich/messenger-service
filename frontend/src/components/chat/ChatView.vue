@@ -1,17 +1,25 @@
 <template>
   <div class="chat-layout">
     <RoomList
+      v-if="!isMobile || !mobileShowChat"
       :rooms="rooms"
       :currentRoomId="currentRoomId"
       :currentUser="currentUser"
+      :archivedCount="archivedCount"
+      :showArchived="showArchived"
       @select="handleSelectRoom"
       @create="openCreateRoom"
       @new-message="showNewMessage = true"
       @open-external-client="showExternalClient = true"
+      @open-feedback="feedbackVisible = true"
+      @toggle-archived="toggleShowArchived"
     />
-    <div class="chat-main">
+    <div class="chat-main" v-if="!isMobile || mobileShowChat">
       <div v-if="currentRoom" class="chat-header">
         <div class="chat-header-left">
+          <button v-if="isMobile" class="header-action-btn back-btn" @click="mobileShowChat = false" title="Zurueck zur Raumliste">
+            <i class="pi pi-arrow-left"></i>
+          </button>
           <h3>{{ currentRoom.display_name }}</h3>
           <span v-if="currentRoom.room_type === 'entity'" class="chat-header-badge">
             {{ currentRoom.entity_type }} #{{ currentRoom.entity_id }}
@@ -40,7 +48,12 @@
         </div>
       </div>
       <div v-else class="chat-header">
-        <div class="chat-header-left"><h3>Messenger</h3></div>
+        <div class="chat-header-left">
+          <button v-if="isMobile" class="header-action-btn back-btn" @click="mobileShowChat = false" title="Zurueck zur Raumliste">
+            <i class="pi pi-arrow-left"></i>
+          </button>
+          <h3>Messenger</h3>
+        </div>
       </div>
       <MessageArea
         :messages="messages"
@@ -195,11 +208,13 @@
     />
 
     <ExternalClientDialog v-model="showExternalClient" />
+
+    <FeedbackDialog v-model:visible="feedbackVisible" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMessenger } from '../../composables/useMessenger'
 import { useSSE } from '../../composables/useSSE'
@@ -208,15 +223,30 @@ import MessageArea from './MessageArea.vue'
 import MessageCompose from './MessageCompose.vue'
 import NewMessageDialog from './NewMessageDialog.vue'
 import ExternalClientDialog from './ExternalClientDialog.vue'
+import FeedbackDialog from './FeedbackDialog.vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
 import { useToast } from 'primevue/usetoast'
 
+// --- Mobile layout: show either the room list or the open chat, not both
+// (the fixed 280px RoomList sidebar left no room for the message area on
+// narrow screens) ---
+const windowWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+const isMobile = computed(() => windowWidth.value < 768)
+const mobileShowChat = ref(false)
+function handleResize() {
+  windowWidth.value = window.innerWidth
+}
+
+const feedbackVisible = ref(false)
+
 const toast = useToast()
 const route = useRoute()
 const {
   rooms,
+  archivedCount,
+  showArchived,
   currentRoomId,
   currentRoom,
   currentUser,
@@ -225,6 +255,7 @@ const {
   hasMore,
   fetchCurrentUser,
   fetchRooms,
+  toggleShowArchived,
   selectRoom,
   sendMessage,
   uploadFile,
@@ -474,6 +505,7 @@ const { connect } = useSSE((event) => {
 async function handleSelectRoom(roomId) {
   selectRoom(roomId)
   loadRoomMembers(roomId)
+  mobileShowChat.value = true
 }
 
 async function handleSend(body) {
@@ -542,13 +574,22 @@ onMounted(async () => {
     Notification.requestPermission()
   }
 
+  window.addEventListener('resize', handleResize)
+
   await Promise.all([fetchCurrentUser(), fetchRooms()])
   connect()
   if (route.params.roomId) {
     handleSelectRoom(route.params.roomId)
+  } else if (isMobile.value) {
+    // On mobile, land on the room list instead of auto-opening the first
+    // chat - opening straight into a chat would hide the list entirely.
   } else if (rooms.value.length > 0) {
     handleSelectRoom(rooms.value[0].matrix_room_id)
   }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
 })
 </script>
 
@@ -653,6 +694,13 @@ onMounted(async () => {
   color: var(--primary-color);
   border-color: var(--primary-color);
   background: var(--primary-50, rgba(59, 130, 246, 0.05));
+}
+
+.back-btn {
+  border: none;
+  padding: 0.35rem;
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
 /* Dialog form styles */
