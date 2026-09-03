@@ -68,9 +68,13 @@ async def send_notification(
             detail=f"Failed to route notification: {str(e)[:200]}",
         )
 
-    # Broadcast to SSE subscribers
+    # Push to SSE subscribers. A DM is only relevant to its one recipient -
+    # broadcasting it to every connected user made every other logged-in
+    # user's notification bell show a "notification" entry for DMs that
+    # weren't theirs (clicking it either opened someone else's private room
+    # or did nothing, since they aren't a member of it).
     try:
-        await broker.broadcast({
+        event_data = {
             "type": "notification",
             "source_app": notification.source_app,
             "event_type": notification.event_type,
@@ -78,7 +82,11 @@ async def send_notification(
             "body": notification.body,
             "priority": notification.priority,
             "room_id": log_entry.matrix_room_id,
-        })
+        }
+        if notification.target_type == "dm" and notification.target_user:
+            await broker.publish_to_user(notification.target_user, event_data)
+        else:
+            await broker.broadcast(event_data)
     except Exception as e:
         logger.warning("SSE broadcast failed (non-fatal): %s", e)
 
