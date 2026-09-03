@@ -2,7 +2,7 @@
 set -e
 
 # Add shared packages to Python path if available
-if [ -d /opt/hub_sync_client ] || [ -d /opt/hub_messenger_client ] || [ -d /opt/satellite_api_client ]; then
+if [ -d /opt/hub_sync_client ] || [ -d /opt/hub_messenger_client ] || [ -d /opt/satellite_api_client ] || [ -d /opt/hub_feedback_kit ]; then
   export PYTHONPATH="/opt:${PYTHONPATH:-}"
 fi
 

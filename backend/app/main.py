@@ -9,7 +9,7 @@ from app.config import LOG_LEVEL, ALLOWED_ORIGINS, IS_PRODUCTION
 from app.database import engine, SessionLocal, Base
 from app import models
 from app.models.user_mapping import UserMapping
-from app.routers import admin, auth, messages, rooms, users, notifications, health, sse, licenses, devices, teams
+from app.routers import admin, auth, messages, rooms, users, notifications, health, sse, licenses, devices, teams, feedback
 from app.services.user_provisioning import provision_bot_user
 from app.services.matrix_client import matrix_client
 from app.services.encryption import migrate_encrypt_if_needed
@@ -302,6 +302,7 @@ app.include_router(sse.router)
 app.include_router(devices.router)
 app.include_router(teams.router)
 app.include_router(licenses.router, prefix="/api/v1/licenses", tags=["Licenses"])
+app.include_router(feedback.router)
 
 
 @app.get("/")
