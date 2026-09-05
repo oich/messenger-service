@@ -89,18 +89,27 @@ class CORSAndLoggingMiddleware:
 
     def _get_cors_headers(self, request_origin: str = "") -> list[tuple[bytes, bytes]]:
         """Build CORS headers based on the request origin."""
-        # Determine allowed origin
         if self._allow_all:
-            origin = b"*"
-        elif request_origin in self._allowed_origins:
-            origin = request_origin.encode("utf-8")
-        elif self._allowed_origins:
-            origin = self._allowed_origins[0].encode("utf-8")
-        else:
-            origin = b""
+            # Wildcard origin + Allow-Credentials is invalid per the Fetch
+            # spec (and ignored by browsers) - only ever pair Allow-
+            # Credentials with a concrete, whitelisted origin below.
+            return [
+                (b"access-control-allow-origin", b"*"),
+                (b"access-control-allow-methods", b"GET, POST, PUT, DELETE, PATCH, OPTIONS"),
+                (b"access-control-allow-headers", b"Authorization, Content-Type, X-Requested-With"),
+            ]
+
+        if not request_origin or request_origin not in self._allowed_origins:
+            # Not a whitelisted origin - omit CORS headers entirely instead
+            # of echoing back an unrelated allowed origin (a browser only
+            # honors Access-Control-Allow-Origin when it matches the actual
+            # request origin, so the previous fallback never granted access,
+            # but "not allowed" should mean no CORS headers, not a mismatched
+            # allow-origin + allow-credentials pair).
+            return []
 
         return [
-            (b"access-control-allow-origin", origin),
+            (b"access-control-allow-origin", request_origin.encode("utf-8")),
             (b"access-control-allow-credentials", b"true"),
             (b"access-control-allow-methods", b"GET, POST, PUT, DELETE, PATCH, OPTIONS"),
             (b"access-control-allow-headers", b"Authorization, Content-Type, X-Requested-With"),

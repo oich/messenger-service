@@ -23,6 +23,16 @@ class SSEBroker:
         logger.debug("User %s subscribed (total: %d)", user_id, len(self._subscribers[user_id]))
         return q
 
+    def is_connected(self, user_id: str) -> bool:
+        """True if the user currently has at least one open SSE connection.
+
+        Used to skip the redundant FCM push for a message that was just
+        delivered live via SSE (see push_notifier.py) - without this, a user
+        with the app in the foreground got both the live SSE event AND a
+        system push notification for the same message.
+        """
+        return bool(self._subscribers.get(user_id))
+
     def unsubscribe(self, user_id: str, q: asyncio.Queue) -> None:
         """Remove a user's subscription."""
         if user_id in self._subscribers:

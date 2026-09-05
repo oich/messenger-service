@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import FCM_ENABLED, FIREBASE_CREDENTIALS_JSON
 from app.models import DeviceToken, UserMapping
 from app.services.matrix_client import matrix_client, MatrixClientError
+from app.services.sse_broker import broker
 
 logger = logging.getLogger("push_notifier")
 
@@ -77,6 +78,10 @@ async def push_to_room_members(
         .filter(UserMapping.matrix_user_id.in_(member_matrix_ids), UserMapping.is_bot == False)
         .all()
     ]
+    # Members with an open SSE connection right now already got this message
+    # live (see the docstring above) - only push to the rest, so a user with
+    # the app in the foreground doesn't also get a system notification.
+    hub_user_ids = [uid for uid in hub_user_ids if not broker.is_connected(uid)]
     if not hub_user_ids:
         return
 
