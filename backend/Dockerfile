@@ -23,6 +23,7 @@ COPY . /code/
 
 # Shared packages
 COPY --from=shared hub_sync_client/ /opt/hub_sync_client/
+COPY --from=shared hub_auth_kit/ /opt/hub_auth_kit/
 COPY --from=shared hub_messenger_client/ /opt/hub_messenger_client/
 COPY --from=shared satellite_api_client/ /opt/satellite_api_client/
 COPY --from=shared hub_feedback_kit/ /opt/hub_feedback_kit/
