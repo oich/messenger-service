@@ -82,6 +82,7 @@ async def send_notification(
             "body": notification.body,
             "priority": notification.priority,
             "room_id": log_entry.matrix_room_id,
+            "data": notification.data,
         }
         if notification.target_type == "dm" and notification.target_user:
             await broker.publish_to_user(notification.target_user, event_data)
