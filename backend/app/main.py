@@ -1,6 +1,8 @@
+import ipaddress
 import logging
 import sys
 import time
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, Request
 from starlette.types import ASGIApp, Receive, Scope, Send, Message
@@ -69,6 +71,56 @@ def _get_cors_origins() -> list[str]:
     ]
 
 
+def _origin_allowed(origin: str, allowed_origins: list[str]) -> bool:
+    """Whether `origin` should get CORS headers, beyond an exact match in
+    `allowed_origins` (=ALLOWED_ORIGINS, normally just the Hub's own
+    HUB_URL). Also accepts:
+    - Private/LAN IPs (any port) - the Hub frontend may be reached via a
+      LAN IP while ALLOWED_ORIGINS is a public Cloudflare-Tunnel domain; a
+      browser can only ever reach a private IP if it's already on that LAN,
+      so this isn't remotely attacker-exploitable.
+    - localhost/127.0.0.1 (development).
+    - Any subdomain sharing the same apex domain as one of the configured
+      allowed origins (Cloudflare Tunnel: the Hub and this satellite each
+      have their own tunnel subdomain, e.g. "syshub.aesystek.de" and
+      "messenger-service.aesystek.de").
+    Same reasoning as hub-backend's _validate_redirect_uri()/
+    _get_cors_origin_regex() (hub-backend/app/routers/auth.py, app/main.py).
+    """
+    if origin in allowed_origins:
+        return True
+    try:
+        hostname = urlparse(origin).hostname
+    except Exception:
+        return False
+    if not hostname:
+        return False
+    if hostname in ("localhost", "127.0.0.1"):
+        return True
+    try:
+        if ipaddress.ip_address(hostname).is_private:
+            return True
+    except ValueError:
+        pass
+    for allowed in allowed_origins:
+        try:
+            allowed_host = urlparse(allowed).hostname
+        except Exception:
+            continue
+        if not allowed_host:
+            continue
+        try:
+            ipaddress.ip_address(allowed_host)
+            continue  # allowed origin is itself an IP - no apex-widening for it
+        except ValueError:
+            pass
+        labels = allowed_host.split(".")
+        apex = ".".join(labels[-2:]) if len(labels) >= 2 else allowed_host
+        if hostname == apex or hostname.endswith("." + apex):
+            return True
+    return False
+
+
 class CORSAndLoggingMiddleware:
     """Combined CORS + request logging as pure ASGI middleware.
 
@@ -99,7 +151,7 @@ class CORSAndLoggingMiddleware:
                 (b"access-control-allow-headers", b"Authorization, Content-Type, X-Requested-With"),
             ]
 
-        if not request_origin or request_origin not in self._allowed_origins:
+        if not request_origin or not _origin_allowed(request_origin, self._allowed_origins):
             # Not a whitelisted origin - omit CORS headers entirely instead
             # of echoing back an unrelated allowed origin (a browser only
             # honors Access-Control-Allow-Origin when it matches the actual
