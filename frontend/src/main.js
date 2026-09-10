@@ -15,8 +15,8 @@ import 'primeflex/primeflex.css'
  * Exchange an authorization code for an access token via Hub backend.
  */
 async function exchangeCodeForToken(code, redirectUri) {
-  // Derive Hub URL from current location (Hub is on port 443, same host)
-  const hubUrl = `${window.location.protocol}//${window.location.hostname}`
+  const { getHubUrl } = await import('./utils/tokenRefresh')
+  const hubUrl = getHubUrl()
   try {
     const response = await fetch(`${hubUrl}/api/auth/sso/token`, {
       method: 'POST',

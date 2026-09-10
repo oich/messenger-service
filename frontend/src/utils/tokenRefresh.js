@@ -4,9 +4,24 @@ const REFRESH_BUFFER_MS = 2 * 60 * 1000
 let refreshTimerId = null
 
 // Derive Hub URL from current location (Hub is on port 443, same host) -
-// same derivation as exchangeCodeForToken() in main.js.
-function getHubUrl() {
-  return `${window.location.protocol}//${window.location.hostname}`
+// Derive the Hub's base URL. window.location only IS the Hub when this
+// satellite shares the Hub's exact host (LAN/plain-domain deployment, only
+// the port differs). If VITE_HUB_URL's host differs, this satellite has its
+// own dedicated hostname (Cloudflare Tunnel, e.g. "messenger-service.aesystek.de"
+// next to the Hub's "syshub.aesystek.de") - use the baked-in VITE_HUB_URL
+// (build-time env var, see docker-compose.hub.yml) instead.
+export function getHubUrl() {
+  const envUrl = import.meta.env?.VITE_HUB_URL
+  const currentHost = window.location.hostname
+  if (envUrl) {
+    try {
+      if (new URL(envUrl).hostname === currentHost) {
+        return `${window.location.protocol}//${currentHost}`
+      }
+    } catch { /* envUrl not a valid URL - fall through to window.location */ }
+    return envUrl
+  }
+  return `${window.location.protocol}//${currentHost}`
 }
 
 /**
