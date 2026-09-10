@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getHubUrl } from './utils/tokenRefresh'
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_TARGET || '',
@@ -20,9 +21,8 @@ function redirectToLogin() {
   localStorage.removeItem('token')
   localStorage.removeItem('refresh_token')
   // Redirect to Hub if configured
-  const hubUrl = import.meta.env.VITE_HUB_URL
-  if (hubUrl) {
-    window.location.href = hubUrl
+  if (import.meta.env.VITE_HUB_URL) {
+    window.location.href = getHubUrl()
     return true
   }
   return false

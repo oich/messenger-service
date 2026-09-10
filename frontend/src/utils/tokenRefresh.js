@@ -13,6 +13,14 @@ let refreshTimerId = null
 export function getHubUrl() {
   const envUrl = import.meta.env?.VITE_HUB_URL
   const currentHost = window.location.hostname
+  // LAN/plain access: this satellite's own current host is an IP (or
+  // localhost) - VITE_HUB_URL is permanently the public Cloudflare-Tunnel
+  // domain once that's configured, so it can never equal a LAN IP;
+  // checking for host EQUALITY alone would always pick the tunnel branch
+  // for LAN access and break it.
+  if (isIpOrLocalhost(currentHost)) {
+    return `${window.location.protocol}//${currentHost}`
+  }
   if (envUrl) {
     try {
       if (new URL(envUrl).hostname === currentHost) {
@@ -22,6 +30,12 @@ export function getHubUrl() {
     return envUrl
   }
   return `${window.location.protocol}//${currentHost}`
+}
+
+function isIpOrLocalhost(host) {
+  if (host === 'localhost') return true
+  if (host.includes(':')) return true // IPv6
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(host)
 }
 
 /**
