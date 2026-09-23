@@ -6,6 +6,7 @@
         <span class="user-name">{{ currentUser.display_name || currentUser.hub_user_id }}</span>
         <span class="user-id">{{ currentUser.hub_user_id }}</span>
       </div>
+      <BuildStamp class="room-list-build-stamp" />
     </div>
     <div class="room-list-header">
       <h3>Raeume</h3>
@@ -96,6 +97,7 @@
 <script setup>
 import { computed } from 'vue'
 import Button from 'primevue/button'
+import BuildStamp from '../BuildStamp.vue'
 
 const props = defineProps({
   rooms: { type: Array, default: () => [] },
@@ -165,6 +167,10 @@ function openSource(url) {
     min-width: 0;
     border-right: none;
   }
+}
+
+.room-list-build-stamp {
+  margin-left: auto;
 }
 
 .room-list-user {
