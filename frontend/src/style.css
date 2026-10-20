@@ -26,16 +26,6 @@
   --mobile-padding: 16px;
   --mobile-gap: 12px;
 
-  /* Surface colors (Dark Theme) */
-  --surface-ground: #121212;
-  --surface-section: #1e1e1e;
-  --surface-card: #252525;
-  --surface-overlay: #2a2a2a;
-  --surface-border: #383838;
-  --surface-hover: #333333;
-  --text-color: #e0e0e0;
-  --text-color-secondary: #a0a0a0;
-  --primary-color: #3b82f6;
 }
 
 /* Prevent iOS zoom on input focus */
@@ -76,30 +66,8 @@
 .pl-safe { padding-left: var(--safe-area-left); }
 .pr-safe { padding-right: var(--safe-area-right); }
 
-/* Override PrimeVue Aura primary palette to blue */
-:root, .dark {
-  --p-primary-50:  #eff6ff !important;
-  --p-primary-100: #dbeafe !important;
-  --p-primary-200: #bfdbfe !important;
-  --p-primary-300: #93c5fd !important;
-  --p-primary-400: #60a5fa !important;
-  --p-primary-500: #3b82f6 !important;
-  --p-primary-600: #2563eb !important;
-  --p-primary-700: #1d4ed8 !important;
-  --p-primary-800: #1e40af !important;
-  --p-primary-900: #1e3a8a !important;
-}
-
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
+/* Page background + text color come from @hub/ui tokens.css (dark/light) */
 html, body, #app {
   height: 100%;
   width: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: var(--surface-ground);
-  color: var(--text-color);
 }

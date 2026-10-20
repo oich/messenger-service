@@ -1,9 +1,8 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import PrimeVue from 'primevue/config'
-import Aura from '@primeuix/themes/aura'
-import Tooltip from 'primevue/tooltip'
-import ToastService from 'primevue/toastservice'
+// PrimeVue + HubPreset + locale + Toast/Confirm + tooltip/ripple + tokens
+// (docs/ui-designsystem-konzept.md, shared/hub_ui_kit)
+import HubUi from '@hub/ui'
 import router from './router'
 import { configureApi } from './api'
 
@@ -78,28 +77,7 @@ async function initializeApp() {
   const app = createApp(App)
 
   app.use(router)
-  app.use(PrimeVue, {
-    theme: {
-      preset: Aura,
-      options: {
-        prefix: 'p',
-        darkModeSelector: '.dark',
-      }
-    },
-    locale: {
-      firstDayOfWeek: 1,
-      dayNames: ["Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"],
-      dayNamesShort: ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
-      dayNamesMin: ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
-      monthNames: ["Januar", "Februar", "Maerz", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"],
-      monthNamesShort: ["Jan", "Feb", "Maer", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"],
-      today: 'Heute',
-      clear: 'Loeschen',
-    }
-  })
-
-  app.use(ToastService)
-  app.directive('tooltip', Tooltip)
+  app.use(HubUi)
 
   await router.isReady()
   app.mount('#app')

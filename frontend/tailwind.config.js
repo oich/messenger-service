@@ -1,9 +1,15 @@
+// UI design system (shared/hub_ui_kit): preset + scan its components,
+// otherwise their classes are missing from the build. Path like vite.config.js.
+const hubUiSrc = process.env.HUB_UI_PATH || require('path').resolve(process.cwd(), '../../../shared/hub_ui_kit/src');
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
+  presets: [require(`${hubUiSrc}/theme/tailwind-preset.cjs`)],
   content: [
     "./index.html",
     "./src/**/*.{vue,js,ts,jsx,tsx}",
+  `${hubUiSrc.replace(/\\/g, '/')}/**/*.{vue,js}`,
   ],
   theme: {
     screens: {

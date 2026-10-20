@@ -13,29 +13,21 @@
           <i class="pi pi-file"></i>
         </div>
         <span class="file-preview-name">{{ filePreview.name }}</span>
-        <button class="file-preview-remove" @click="removeFile">
-          <i class="pi pi-times"></i>
-        </button>
+        <Button icon="pi pi-times" text rounded severity="secondary" v-tooltip.bottom="'Datei entfernen'" aria-label="Datei entfernen" @click="removeFile" />
       </div>
     </div>
     <div class="compose-row">
       <div class="compose-actions-left">
-        <button class="compose-action-btn" @click="triggerFileInput" title="Datei anhaengen">
-          <i class="pi pi-paperclip"></i>
-        </button>
+        <Button icon="pi pi-paperclip" text rounded severity="secondary" v-tooltip.bottom="'Datei anhaengen'" aria-label="Datei anhaengen" @click="triggerFileInput" />
         <input
           ref="fileInputRef"
           type="file"
           class="hidden-file-input"
           @change="onFileSelect"
         />
-        <button v-if="hasNativeCamera" class="compose-action-btn" @click="takePhoto" title="Foto aufnehmen" :disabled="cameraBusy">
-          <i class="pi" :class="cameraBusy ? 'pi-spin pi-spinner' : 'pi-camera'"></i>
-        </button>
+        <Button v-if="hasNativeCamera" icon="pi pi-camera" :loading="cameraBusy" text rounded severity="secondary" v-tooltip.bottom="'Foto aufnehmen'" aria-label="Foto aufnehmen" @click="takePhoto" />
         <div class="emoji-container">
-          <button class="compose-action-btn" @click="toggleEmojiPicker" title="Emoji">
-            <i class="pi pi-face-smile"></i>
-          </button>
+          <Button icon="pi pi-face-smile" text rounded severity="secondary" v-tooltip.bottom="'Emoji'" aria-label="Emoji" @click="toggleEmojiPicker" />
           <div v-if="showEmojiPicker" class="emoji-popover" ref="emojiPopoverRef">
             <EmojiPicker @select="insertEmoji" />
           </div>
@@ -223,7 +215,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 }
 
 .compose-bar.drag-over {
-  background: var(--primary-50, rgba(59, 130, 246, 0.05));
+  background: var(--hub-primary-soft);
   border-top-color: var(--primary-color);
 }
 
@@ -268,21 +260,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   max-width: 180px;
 }
 
-.file-preview-remove {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-color-secondary);
-  padding: 0.2rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-}
 
-.file-preview-remove:hover {
-  color: var(--red-500);
-  background: var(--surface-hover);
-}
 
 .compose-row {
   display: flex;
@@ -297,24 +275,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   padding-bottom: 0.2rem;
 }
 
-.compose-action-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-color-secondary);
-  padding: 0.4rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  transition: color 0.15s, background 0.15s;
-}
 
-.compose-action-btn:hover {
-  color: var(--primary-color);
-  background: var(--surface-hover);
-}
 
 .emoji-container {
   position: relative;

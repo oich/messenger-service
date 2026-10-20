@@ -67,7 +67,10 @@ services:
   frontend:
     mem_limit: 128m
     cpu_shares: 256
-    build: ./frontend
+    build:
+      context: ./frontend
+      additional_contexts:
+        shared: ../../shared   # shared/hub_ui_kit (@hub/ui), see vite.config.js
     ports:
       - "8085:80"
     depends_on:

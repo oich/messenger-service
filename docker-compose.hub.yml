@@ -33,6 +33,8 @@ services:
   frontend:
     build:
       context: ./frontend
+      additional_contexts:
+        shared: ../../shared
       args:
         - VITE_HUB_URL=${HUB_URL:-https://localhost}
     ports: !override []

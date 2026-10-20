@@ -1,11 +1,10 @@
 <template>
-  <Dialog
+  <HubDialog
     v-model:visible="visible"
     header="Neue Nachricht"
-    modal
-    :style="{ width: '520px' }"
     :closable="true"
     @hide="resetForm"
+    size="md"
   >
     <div class="new-msg-form">
       <!-- Recipient field -->
@@ -72,16 +71,12 @@
           ></textarea>
           <div class="msg-actions">
             <div class="emoji-container">
-              <button class="msg-action-btn" @click="toggleEmojiPicker" title="Emoji">
-                <i class="pi pi-face-smile"></i>
-              </button>
+              <Button icon="pi pi-face-smile" text rounded severity="secondary" v-tooltip.bottom="'Emoji'" aria-label="Emoji" @click="toggleEmojiPicker" />
               <div v-if="showEmojiPicker" class="emoji-popover" ref="emojiPopoverRef">
                 <EmojiPicker @select="insertEmoji" />
               </div>
             </div>
-            <button class="msg-action-btn" @click="triggerFileInput" title="Datei anhaengen">
-              <i class="pi pi-paperclip"></i>
-            </button>
+            <Button icon="pi pi-paperclip" text rounded severity="secondary" v-tooltip.bottom="'Datei anhaengen'" aria-label="Datei anhaengen" @click="triggerFileInput" />
             <input
               ref="fileInputRef"
               type="file"
@@ -100,15 +95,13 @@
             <i class="pi pi-file"></i>
           </div>
           <span class="file-preview-name">{{ filePreview.name }}</span>
-          <button class="file-preview-remove" @click="removeFile">
-            <i class="pi pi-times"></i>
-          </button>
+          <Button icon="pi pi-times" text rounded severity="secondary" v-tooltip.bottom="'Datei entfernen'" aria-label="Datei entfernen" @click="removeFile" />
         </div>
       </div>
     </div>
 
     <template #footer>
-      <Button label="Abbrechen" severity="secondary" @click="visible = false" />
+      <Button severity="secondary" text label="Abbrechen" @click="visible = false" />
       <Button
         label="Senden"
         icon="pi pi-send"
@@ -117,12 +110,12 @@
         :loading="sending"
       />
     </template>
-  </Dialog>
+  </HubDialog>
 </template>
 
 <script setup>
+import { HubDialog } from '@hub/ui'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import EmojiPicker from './EmojiPicker.vue'
 
@@ -349,7 +342,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   align-items: center;
   gap: 0.25rem;
   background: var(--primary-color);
-  color: #fff;
+  color: var(--p-primary-contrast-color);
   font-size: 0.8rem;
   padding: 0.15rem 0.5rem;
   border-radius: 12px;
@@ -359,7 +352,8 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--p-primary-contrast-color);
+  opacity: 0.75;
   padding: 0;
   font-size: 0.7rem;
   display: flex;
@@ -367,7 +361,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 }
 
 .chip-remove:hover {
-  color: #fff;
+  color: var(--p-primary-contrast-color);
 }
 
 .recipient-input {
@@ -469,22 +463,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   gap: 0.25rem;
 }
 
-.msg-action-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-color-secondary);
-  padding: 0.25rem;
-  border-radius: 4px;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  transition: color 0.15s;
-}
 
-.msg-action-btn:hover {
-  color: var(--primary-color);
-}
 
 .emoji-container {
   position: relative;
@@ -539,20 +518,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   max-width: 180px;
 }
 
-.file-preview-remove {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-color-secondary);
-  padding: 0.2rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-}
 
-.file-preview-remove:hover {
-  color: var(--red-500);
-}
 
 .hidden-file-input {
   display: none;

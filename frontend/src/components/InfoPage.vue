@@ -24,7 +24,7 @@
     <Card>
       <template #title>Fremdlizenzen - Frontend (NPM)</template>
       <template #content>
-        <DataTable :value="licenses" :paginator="true" :rows="10" stripedRows>
+        <HubDataTable flat :value="licenses" :paginator="true" :rows="10">
           <Column field="moduleName" header="Modul" sortable />
           <Column field="license" header="Lizenz" sortable />
           <Column header="Repository">
@@ -37,7 +37,7 @@
               >{{ slotProps.data.repository }}</a>
             </template>
           </Column>
-        </DataTable>
+        </HubDataTable>
       </template>
     </Card>
 
@@ -45,7 +45,7 @@
       <template #title>Fremdlizenzen - Backend (Python)</template>
       <template #content>
         <p v-if="pythonLicensesError" class="text-gray-400">Nicht verfuegbar</p>
-        <DataTable v-else :value="pythonLicenses" :paginator="true" :rows="10" stripedRows>
+        <HubDataTable flat v-else :value="pythonLicenses" :paginator="true" :rows="10">
           <Column field="Name" header="Paket" sortable />
           <Column field="Version" header="Version" sortable />
           <Column field="License" header="Lizenz" sortable />
@@ -60,7 +60,7 @@
               >{{ slotProps.data.URL }}</a>
             </template>
           </Column>
-        </DataTable>
+        </HubDataTable>
       </template>
     </Card>
 
@@ -68,20 +68,20 @@
       <template #title>Fremdlizenzen - System (Docker/apt)</template>
       <template #content>
         <p v-if="systemLicensesError" class="text-gray-400">Nicht verfuegbar</p>
-        <DataTable v-else :value="systemLicenses" :paginator="true" :rows="10" stripedRows>
+        <HubDataTable flat v-else :value="systemLicenses" :paginator="true" :rows="10">
           <Column field="Name" header="Paket" sortable />
           <Column field="Version" header="Version" sortable />
           <Column field="License" header="Lizenz" sortable />
-        </DataTable>
+        </HubDataTable>
       </template>
     </Card>
   </div>
 </template>
 
 <script setup>
+import { HubDataTable } from '@hub/ui';
 import { ref, onMounted } from 'vue';
 import Card from 'primevue/card';
-import DataTable from 'primevue/datatable';
 import Column from 'primevue/column';
 import api from '../api';
 

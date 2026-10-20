@@ -6,7 +6,6 @@
         <span class="user-name">{{ currentUser.display_name || currentUser.hub_user_id }}</span>
         <span class="user-id">{{ currentUser.hub_user_id }}</span>
       </div>
-      <BuildStamp class="room-list-build-stamp" />
     </div>
     <div class="room-list-header">
       <h3>Raeume</h3>
@@ -67,9 +66,8 @@
         Keine Raeume vorhanden
       </div>
     </div>
-    <div class="room-list-footer">
+    <div v-if="currentUser?.external_client_enabled" class="room-list-footer">
       <a
-        v-if="currentUser?.external_client_enabled"
         href="#"
         class="footer-link"
         @click.prevent="$emit('open-external-client')"
@@ -78,18 +76,6 @@
         <i class="pi pi-mobile"></i>
         <span>Matrix-Client</span>
       </a>
-      <router-link v-if="currentUser?.role === 'admin'" to="/admin" class="footer-link" v-tooltip="'Admin-Panel'">
-        <i class="pi pi-cog"></i>
-        <span>Admin</span>
-      </router-link>
-      <a href="#" class="footer-link" @click.prevent="$emit('open-feedback')" v-tooltip="'Feedback / Bug melden'">
-        <i class="pi pi-comment"></i>
-        <span>Feedback</span>
-      </a>
-      <router-link to="/info" class="footer-link" v-tooltip="'Info und Lizenzen'">
-        <i class="pi pi-info-circle"></i>
-        <span>Info</span>
-      </router-link>
     </div>
   </div>
 </template>
@@ -97,7 +83,6 @@
 <script setup>
 import { computed } from 'vue'
 import Button from 'primevue/button'
-import BuildStamp from '../BuildStamp.vue'
 
 const props = defineProps({
   rooms: { type: Array, default: () => [] },
@@ -107,7 +92,7 @@ const props = defineProps({
   showArchived: { type: Boolean, default: false },
 })
 
-defineEmits(['select', 'create', 'new-message', 'open-external-client', 'open-feedback', 'toggle-archived'])
+defineEmits(['select', 'create', 'new-message', 'open-external-client', 'toggle-archived'])
 
 const userInitials = computed(() => {
   const name = props.currentUser?.display_name || props.currentUser?.hub_user_id || '?'
@@ -169,10 +154,6 @@ function openSource(url) {
   }
 }
 
-.room-list-build-stamp {
-  margin-left: auto;
-}
-
 .room-list-user {
   display: flex;
   align-items: center;
@@ -187,7 +168,7 @@ function openSource(url) {
   height: 32px;
   border-radius: 50%;
   background: var(--primary-color);
-  color: #fff;
+  color: var(--p-primary-contrast-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -354,7 +335,7 @@ function openSource(url) {
 
 .room-badge {
   background: var(--primary-color);
-  color: #fff;
+  color: var(--p-primary-contrast-color);
   font-size: 0.7rem;
   font-weight: 600;
   padding: 0.1rem 0.4rem;

@@ -1,6 +1,6 @@
 <script setup>
+import { HubDialog } from '@hub/ui'
 import { ref, computed } from 'vue'
-import Dialog from 'primevue/dialog'
 import SelectButton from 'primevue/selectbutton'
 import InputText from 'primevue/inputtext'
 import Textarea from 'primevue/textarea'
@@ -86,13 +86,12 @@ function closeDialog() {
 </script>
 
 <template>
-  <Dialog
+  <HubDialog
     v-model:visible="dialogVisible"
-    :modal="true"
     header="Feedback"
-    :style="{ width: '480px' }"
     :dismissable-mask="true"
     @hide="closeDialog"
+    size="sm"
   >
     <div class="flex flex-col gap-4 pt-2">
       <SelectButton v-model="type" :options="typeOptions" optionLabel="label" optionValue="value" :allowEmpty="false" />
@@ -122,8 +121,8 @@ function closeDialog() {
     </div>
 
     <template #footer>
-      <Button label="Abbrechen" severity="secondary" @click="closeDialog" />
+      <Button severity="secondary" text label="Abbrechen" @click="closeDialog" />
       <Button label="Absenden" icon="pi pi-send" :loading="submitting" @click="submit" />
     </template>
-  </Dialog>
+  </HubDialog>
 </template>

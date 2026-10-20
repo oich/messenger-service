@@ -192,7 +192,7 @@ function openImage(url) {
 
 .bubble-own {
   background: var(--primary-color);
-  color: #fff;
+  color: var(--p-primary-contrast-color);
   border-bottom-right-radius: 4px;
 }
 
@@ -225,7 +225,8 @@ function openImage(url) {
 }
 
 .bubble-own .message-time {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--p-primary-contrast-color);
+  opacity: 0.75;
 }
 
 /* Image */

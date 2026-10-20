@@ -11,15 +11,12 @@
       @create="openCreateRoom"
       @new-message="showNewMessage = true"
       @open-external-client="showExternalClient = true"
-      @open-feedback="feedbackVisible = true"
       @toggle-archived="toggleShowArchived"
     />
     <div class="chat-main" v-if="!isMobile || mobileShowChat">
       <div v-if="currentRoom" class="chat-header">
         <div class="chat-header-left">
-          <button v-if="isMobile" class="header-action-btn back-btn" @click="mobileShowChat = false" title="Zurueck zur Raumliste">
-            <i class="pi pi-arrow-left"></i>
-          </button>
+          <Button icon="pi pi-arrow-left" text rounded severity="secondary" v-tooltip.bottom="'Zurueck zur Raumliste'" aria-label="Zurueck zur Raumliste" v-if="isMobile" @click="mobileShowChat = false" />
           <h3>{{ currentRoom.display_name }}</h3>
           <span v-if="currentRoom.room_type === 'entity'" class="chat-header-badge">
             {{ currentRoom.entity_type }} #{{ currentRoom.entity_id }}
@@ -37,21 +34,12 @@
               +{{ roomMembers.length - 5 }}
             </span>
           </div>
-          <button
-            v-if="currentRoom.room_type !== 'dm'"
-            class="header-action-btn"
-            @click="openInviteDialog"
-            title="Mitglied hinzufuegen"
-          >
-            <i class="pi pi-user-plus"></i>
-          </button>
+          <Button icon="pi pi-user-plus" text rounded severity="secondary" v-tooltip.bottom="'Mitglied hinzufuegen'" aria-label="Mitglied hinzufuegen" v-if="currentRoom.room_type !== 'dm'" @click="openInviteDialog" />
         </div>
       </div>
       <div v-else class="chat-header">
         <div class="chat-header-left">
-          <button v-if="isMobile" class="header-action-btn back-btn" @click="mobileShowChat = false" title="Zurueck zur Raumliste">
-            <i class="pi pi-arrow-left"></i>
-          </button>
+          <Button icon="pi pi-arrow-left" text rounded severity="secondary" v-tooltip.bottom="'Zurueck zur Raumliste'" aria-label="Zurueck zur Raumliste" v-if="isMobile" @click="mobileShowChat = false" />
           <h3>Messenger</h3>
         </div>
       </div>
@@ -70,12 +58,11 @@
     </div>
 
     <!-- Create Room Dialog -->
-    <Dialog
+    <HubDialog
       v-model:visible="showCreateRoom"
       header="Neuen Raum erstellen"
-      modal
-      :style="{ width: '480px' }"
       @hide="resetCreateRoom"
+      size="sm"
     >
       <div class="dialog-form">
         <div class="form-field">
@@ -121,18 +108,17 @@
         </div>
       </div>
       <template #footer>
-        <Button label="Abbrechen" severity="secondary" @click="showCreateRoom = false" />
+        <Button severity="secondary" text label="Abbrechen" @click="showCreateRoom = false" />
         <Button label="Erstellen" @click="handleCreateRoom" :disabled="!newRoomName.trim()" />
       </template>
-    </Dialog>
+    </HubDialog>
 
     <!-- Invite to Room Dialog -->
-    <Dialog
+    <HubDialog
       v-model:visible="showInviteDialog"
       header="Mitglied hinzufuegen"
-      modal
-      :style="{ width: '400px' }"
       @hide="resetInvite"
+      size="sm"
     >
       <div class="dialog-form">
         <div class="form-field">
@@ -179,14 +165,13 @@
           </div>
         </div>
       </div>
-    </Dialog>
+    </HubDialog>
 
     <!-- Member List Dialog -->
-    <Dialog
+    <HubDialog
       v-model:visible="showMemberList"
       header="Raum-Mitglieder"
-      modal
-      :style="{ width: '360px' }"
+      size="sm"
     >
       <div class="member-list">
         <div v-for="member in roomMembers" :key="member.matrix_user_id" class="member-item">
@@ -200,7 +185,7 @@
           Keine Mitglieder gefunden
         </div>
       </div>
-    </Dialog>
+    </HubDialog>
 
     <NewMessageDialog
       v-model="showNewMessage"
@@ -209,11 +194,11 @@
 
     <ExternalClientDialog v-model="showExternalClient" />
 
-    <FeedbackDialog v-model:visible="feedbackVisible" />
   </div>
 </template>
 
 <script setup>
+import { HubDialog } from '@hub/ui'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useMessenger } from '../../composables/useMessenger'
@@ -223,7 +208,6 @@ import MessageArea from './MessageArea.vue'
 import MessageCompose from './MessageCompose.vue'
 import NewMessageDialog from './NewMessageDialog.vue'
 import ExternalClientDialog from './ExternalClientDialog.vue'
-import FeedbackDialog from './FeedbackDialog.vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Button from 'primevue/button'
@@ -239,7 +223,6 @@ function handleResize() {
   windowWidth.value = window.innerWidth
 }
 
-const feedbackVisible = ref(false)
 
 const toast = useToast()
 const route = useRoute()
@@ -596,7 +579,7 @@ onUnmounted(() => {
 <style scoped>
 .chat-layout {
   display: flex;
-  height: 100vh;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -656,8 +639,8 @@ onUnmounted(() => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--primary-100, #e0e7ff);
-  color: var(--primary-700, #4338ca);
+  background: var(--hub-primary-soft);
+  color: var(--hub-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -672,36 +655,13 @@ onUnmounted(() => {
 }
 
 .member-more {
-  background: var(--surface-200, #e5e7eb);
+  background: var(--hub-card-alt);
   color: var(--text-color-secondary);
   font-size: 0.55rem;
 }
 
-.header-action-btn {
-  background: none;
-  border: 1px solid var(--surface-border);
-  cursor: pointer;
-  color: var(--text-color-secondary);
-  padding: 0.35rem 0.5rem;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  font-size: 0.9rem;
-  transition: all 0.15s;
-}
 
-.header-action-btn:hover {
-  color: var(--primary-color);
-  border-color: var(--primary-color);
-  background: var(--primary-50, rgba(59, 130, 246, 0.05));
-}
 
-.back-btn {
-  border: none;
-  padding: 0.35rem;
-  font-size: 1.1rem;
-  flex-shrink: 0;
-}
 
 /* Dialog form styles */
 .dialog-form {
@@ -747,7 +707,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.25rem;
   background: var(--primary-color);
-  color: #fff;
+  color: var(--p-primary-contrast-color);
   font-size: 0.8rem;
   padding: 0.15rem 0.5rem;
   border-radius: 12px;
@@ -757,7 +717,8 @@ onUnmounted(() => {
   background: none;
   border: none;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--p-primary-contrast-color);
+  opacity: 0.75;
   padding: 0;
   font-size: 0.7rem;
   display: flex;
@@ -765,7 +726,7 @@ onUnmounted(() => {
 }
 
 .chip-remove:hover {
-  color: #fff;
+  color: var(--p-primary-contrast-color);
 }
 
 .invite-input {
@@ -886,8 +847,8 @@ onUnmounted(() => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--primary-100, #e0e7ff);
-  color: var(--primary-700, #4338ca);
+  background: var(--hub-primary-soft);
+  color: var(--hub-primary);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -1,10 +1,9 @@
 <template>
-  <Dialog
+  <HubDialog
     :visible="modelValue"
     @update:visible="$emit('update:modelValue', $event)"
     header="Mit Matrix-Client verbinden"
-    modal
-    :style="{ width: '440px' }"
+    size="sm"
   >
     <div v-if="loading" class="ext-loading">
       <i class="pi pi-spin pi-spinner"></i> Lade Zugangsdaten...
@@ -24,30 +23,22 @@
           <label>Homeserver</label>
           <div class="credential-value">
             <code>{{ clientInfo.homeserver }}</code>
-            <button class="copy-btn" @click="copy(clientInfo.homeserver)" title="Kopieren">
-              <i class="pi pi-copy"></i>
-            </button>
+            <Button icon="pi pi-copy" text rounded severity="secondary" v-tooltip.bottom="'Kopieren'" aria-label="Kopieren" @click="copy(clientInfo.homeserver)" />
           </div>
         </div>
         <div class="credential-row">
           <label>Benutzer</label>
           <div class="credential-value">
             <code>{{ clientInfo.username }}</code>
-            <button class="copy-btn" @click="copy(clientInfo.username)" title="Kopieren">
-              <i class="pi pi-copy"></i>
-            </button>
+            <Button icon="pi pi-copy" text rounded severity="secondary" v-tooltip.bottom="'Kopieren'" aria-label="Kopieren" @click="copy(clientInfo.username)" />
           </div>
         </div>
         <div class="credential-row">
           <label>Passwort</label>
           <div class="credential-value">
             <code class="password-field">{{ showPassword ? clientInfo.password : '••••••••••••' }}</code>
-            <button class="copy-btn" @click="togglePassword" :title="showPassword ? 'Verbergen' : 'Anzeigen'">
-              <i :class="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
-            </button>
-            <button class="copy-btn" @click="copy(clientInfo.password)" title="Kopieren">
-              <i class="pi pi-copy"></i>
-            </button>
+            <Button :icon="showPassword ? 'pi pi-eye-slash' : 'pi pi-eye'" text rounded severity="secondary" v-tooltip.bottom="showPassword ? 'Verbergen' : 'Anzeigen'" :aria-label="showPassword ? 'Verbergen' : 'Anzeigen'" @click="togglePassword" />
+            <Button icon="pi pi-copy" text rounded severity="secondary" v-tooltip.bottom="'Kopieren'" aria-label="Kopieren" @click="copy(clientInfo.password)" />
           </div>
         </div>
       </div>
@@ -57,14 +48,15 @@
         In Element: Anmelden &rarr; Homeserver bearbeiten &rarr; obige URL eingeben
       </div>
     </div>
-  </Dialog>
+  </HubDialog>
 </template>
 
 <script setup>
+import { HubDialog } from '@hub/ui'
 import { ref, watch } from 'vue'
-import Dialog from 'primevue/dialog'
 import api from '../../api'
 import { useToast } from 'primevue/usetoast'
+import Button from 'primevue/button'
 
 const toast = useToast()
 
@@ -136,7 +128,7 @@ watch(() => props.modelValue, (open) => {
 }
 
 .ext-error {
-  color: var(--red-500, #ef4444);
+  color: var(--hub-danger);
 }
 
 .ext-intro {
@@ -188,23 +180,7 @@ watch(() => props.modelValue, (open) => {
   letter-spacing: 1px;
 }
 
-.copy-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--text-color-secondary);
-  padding: 0.2rem;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  font-size: 0.85rem;
-  transition: color 0.15s;
-  flex-shrink: 0;
-}
 
-.copy-btn:hover {
-  color: var(--primary-color);
-}
 
 .ext-hint {
   margin-top: 0.75rem;

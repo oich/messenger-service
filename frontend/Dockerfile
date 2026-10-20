@@ -11,6 +11,9 @@ ARG VITE_API_TARGET=""
 ENV VITE_HUB_URL=${VITE_HUB_URL}
 ENV VITE_API_TARGET=${VITE_API_TARGET}
 
+# UI design system (resolved via the @hub/ui alias in vite.config.js + tailwind.config.js)
+COPY --from=shared hub_ui_kit/ /shared/hub_ui_kit/
+ENV HUB_UI_PATH=/shared/hub_ui_kit/src
 COPY . .
 RUN npm run build
 
