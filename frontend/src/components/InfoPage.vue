@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col gap-5">
+  <div class="flex flex-col gap-8">
     <Card>
       <template #title>Copyright</template>
       <template #content>
@@ -33,7 +33,7 @@
                 :href="slotProps.data.repository"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-primary hover:underline"
+                class="text-hub-primary hover:underline"
               >{{ slotProps.data.repository }}</a>
             </template>
           </Column>
@@ -44,7 +44,7 @@
     <Card>
       <template #title>Fremdlizenzen - Backend (Python)</template>
       <template #content>
-        <p v-if="pythonLicensesError" class="text-gray-400">Nicht verfuegbar</p>
+        <p v-if="pythonLicensesError" class="text-hub-muted">Nicht verfuegbar</p>
         <HubDataTable flat v-else :value="pythonLicenses" :paginator="true" :rows="10">
           <Column field="Name" header="Paket" sortable />
           <Column field="Version" header="Version" sortable />
@@ -56,7 +56,7 @@
                 :href="slotProps.data.URL"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-primary hover:underline"
+                class="text-hub-primary hover:underline"
               >{{ slotProps.data.URL }}</a>
             </template>
           </Column>
@@ -67,7 +67,7 @@
     <Card>
       <template #title>Fremdlizenzen - System (Docker/apt)</template>
       <template #content>
-        <p v-if="systemLicensesError" class="text-gray-400">Nicht verfuegbar</p>
+        <p v-if="systemLicensesError" class="text-hub-muted">Nicht verfuegbar</p>
         <HubDataTable flat v-else :value="systemLicenses" :paginator="true" :rows="10">
           <Column field="Name" header="Paket" sortable />
           <Column field="Version" header="Version" sortable />

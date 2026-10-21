@@ -8,7 +8,6 @@ import { configureApi } from './api'
 
 import 'primeicons/primeicons.css'
 import './style.css'
-import 'primeflex/primeflex.css'
 
 /**
  * Exchange an authorization code for an access token via Hub backend.

@@ -93,7 +93,7 @@ function closeDialog() {
     @hide="closeDialog"
     size="sm"
   >
-    <div class="flex flex-col gap-4 pt-2">
+    <div class="flex flex-col gap-6 pt-2">
       <SelectButton v-model="type" :options="typeOptions" optionLabel="label" optionValue="value" :allowEmpty="false" />
 
       <div class="field">

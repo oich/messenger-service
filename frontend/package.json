@@ -15,8 +15,7 @@
     "axios": "^1.7.2",
     "primevue": "^4.5.0",
     "@primeuix/themes": "^1.1.2",
-    "primeicons": "^7.0.0",
-    "primeflex": "^4.0.0"
+    "primeicons": "^7.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.4",
