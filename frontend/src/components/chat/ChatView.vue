@@ -424,6 +424,9 @@ function showBrowserNotification(event) {
   // backgrounded. The WebView also does not implement the standard
   // Notification Web API used further below at all.
   if (typeof window.api?.showNotification === 'function') {
+    // FCM push active (registered by the Hub page, see hub-frontend
+    // utils/pushRegistration.js) - the system notification comes from there.
+    if (typeof window.api.isPushActive === 'function' && window.api.isPushActive()) return
     if (typeof window.api.isHidden === 'function' && !window.api.isHidden()) return
     if (event.sender === currentUser.value?.matrix_user_id) return
     const senderName = event.sender_display_name || event.sender || 'Neue Nachricht'

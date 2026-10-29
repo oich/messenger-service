@@ -74,11 +74,17 @@ async def _get_sse_user(
 
 @router.get("/stream")
 async def event_stream(
+    client: str = Query("web", max_length=20),
     current_user: UserMapping = Depends(_get_sse_user),
 ):
-    """SSE stream of real-time events for the authenticated user."""
-    logger.info("SSE: User %s connected (matrix: %s)", current_user.hub_user_id, current_user.matrix_user_id)
-    q = broker.subscribe(current_user.hub_user_id)
+    """SSE stream of real-time events for the authenticated user.
+
+    client=android marks connections from the Android app (see
+    SSEBroker.is_connected / push_notifier.py)."""
+    client = "android" if client == "android" else "web"
+    logger.info("SSE: User %s connected (matrix: %s, client: %s)",
+                current_user.hub_user_id, current_user.matrix_user_id, client)
+    q = broker.subscribe(current_user.hub_user_id, client)
     return StreamingResponse(
         sse_event_stream(current_user.hub_user_id, q),
         media_type="text/event-stream",

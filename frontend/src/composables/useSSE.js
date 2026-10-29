@@ -27,7 +27,10 @@ export function useSSE(onMessage) {
     }
 
     const baseUrl = import.meta.env.VITE_API_TARGET || ''
-    const url = `${baseUrl}/api/v1/events/stream?token=${encodeURIComponent(token)}`
+    // client=android: the server still sends FCM pushes while the app's
+    // background WebView keeps this stream open (see backend sse_broker.py)
+    const client = window.AndroidNative ? '&client=android' : ''
+    const url = `${baseUrl}/api/v1/events/stream?token=${encodeURIComponent(token)}${client}`
 
     console.log('[SSE] Connecting to:', url.replace(/token=[^&]+/, 'token=***'))
 

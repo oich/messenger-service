@@ -5,7 +5,10 @@ Complements the SSE broker: SSE only reaches clients with an open connection
 or closed. Disabled unless FCM_ENABLED + FIREBASE_CREDENTIALS_JSON are set.
 """
 
+import base64
+import json
 import logging
+import os
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -33,13 +36,30 @@ def _get_firebase_app():
         import firebase_admin
         from firebase_admin import credentials
 
-        cred = credentials.Certificate(FIREBASE_CREDENTIALS_JSON)
+        cred = credentials.Certificate(_parse_credentials(FIREBASE_CREDENTIALS_JSON))
         _firebase_app = firebase_admin.initialize_app(cred)
         return _firebase_app
     except Exception:
         logger.exception("Failed to initialize firebase-admin - push notifications disabled")
         _firebase_init_failed = True
         return None
+
+
+def _parse_credentials(value: str):
+    """FIREBASE_CREDENTIALS_JSON may be a file path inside the container,
+    the service-account JSON itself, or that JSON base64-encoded (easiest to
+    put into a satellite .env / the Hub's satellite config as one line)."""
+    value = value.strip()
+    if value.startswith("{"):
+        return json.loads(value)
+    if os.path.isfile(value):
+        return value
+    return json.loads(base64.b64decode(value).decode("utf-8"))
+
+
+def is_push_enabled() -> bool:
+    """True if FCM is configured and firebase-admin initialized."""
+    return FCM_ENABLED and _get_firebase_app() is not None
 
 
 async def push_to_room_members(
@@ -78,10 +98,14 @@ async def push_to_room_members(
         .filter(UserMapping.matrix_user_id.in_(member_matrix_ids), UserMapping.is_bot == False)
         .all()
     ]
-    # Members with an open SSE connection right now already got this message
-    # live (see the docstring above) - only push to the rest, so a user with
-    # the app in the foreground doesn't also get a system notification.
-    hub_user_ids = [uid for uid in hub_user_ids if not broker.is_connected(uid)]
+    # Members live at a desktop/browser client right now already got this
+    # message via SSE - only push to the rest. The Android app's own SSE
+    # connections do not count (they keep running in the background, see
+    # SSEBroker.is_connected); in the foreground FCM shows no tray
+    # notification anyway.
+    hub_user_ids = [
+        uid for uid in hub_user_ids if not broker.is_connected(uid, ignore_clients=("android",))
+    ]
     if not hub_user_ids:
         return
 
@@ -99,6 +123,12 @@ async def push_to_room_members(
     message = messaging.MulticastMessage(
         notification=messaging.Notification(title=title, body=body),
         data={"matrix_room_id": room_id},
+        # Channel as created by the app (MainActivity.NOTIFICATION_CHANNEL_ID);
+        # tag = room, so a chat shows its latest message instead of piling up.
+        android=messaging.AndroidConfig(
+            priority="high",
+            notification=messaging.AndroidNotification(channel_id="aesystek_hub_default", tag=room_id),
+        ),
         tokens=tokens,
     )
     try:

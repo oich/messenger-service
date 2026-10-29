@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from typing import AsyncIterator, Dict, Any, List
+from typing import AsyncIterator, Dict, Any, Iterable, List
 
 logger = logging.getLogger("sse_broker")
 
@@ -13,25 +13,36 @@ class SSEBroker:
 
     def __init__(self):
         self._subscribers: Dict[str, List[asyncio.Queue]] = {}
+        # Client kind per queue ("web" or "android") - see is_connected().
+        self._client_kind: Dict[int, str] = {}
 
-    def subscribe(self, user_id: str) -> asyncio.Queue:
+    def subscribe(self, user_id: str, client: str = "web") -> asyncio.Queue:
         """Subscribe a user to receive SSE events."""
         q: asyncio.Queue = asyncio.Queue(maxsize=100)
+        self._client_kind[id(q)] = client
         if user_id not in self._subscribers:
             self._subscribers[user_id] = []
         self._subscribers[user_id].append(q)
         logger.debug("User %s subscribed (total: %d)", user_id, len(self._subscribers[user_id]))
         return q
 
-    def is_connected(self, user_id: str) -> bool:
-        """True if the user currently has at least one open SSE connection.
+    def is_connected(self, user_id: str, ignore_clients: Iterable[str] = ()) -> bool:
+        """True if the user currently has at least one open SSE connection
+        of a client kind not in ignore_clients.
 
-        Used to skip the redundant FCM push for a message that was just
-        delivered live via SSE (see push_notifier.py) - without this, a user
-        with the app in the foreground got both the live SSE event AND a
-        system push notification for the same message.
+        push_notifier.py skips the FCM push for users who are live at a
+        desktop/browser client. Connections from the Android app itself are
+        ignored there (ignore_clients=("android",)): Capacitor keeps the
+        WebView's SSE running while the app is backgrounded, so they say
+        nothing about whether the user actually sees the message - FCM
+        does not show a tray notification while the app is in the
+        foreground anyway.
         """
-        return bool(self._subscribers.get(user_id))
+        ignored = set(ignore_clients)
+        return any(
+            self._client_kind.get(id(q), "web") not in ignored
+            for q in self._subscribers.get(user_id, [])
+        )
 
     def unsubscribe(self, user_id: str, q: asyncio.Queue) -> None:
         """Remove a user's subscription."""
@@ -40,6 +51,7 @@ class SSEBroker:
                 self._subscribers[user_id].remove(q)
             except ValueError:
                 pass
+            self._client_kind.pop(id(q), None)
             if not self._subscribers[user_id]:
                 del self._subscribers[user_id]
 

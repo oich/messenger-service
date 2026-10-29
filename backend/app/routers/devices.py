@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user
 from app.database import get_db
 from app.models import DeviceToken, UserMapping
+from app.services.push_notifier import is_push_enabled
 
 logger = logging.getLogger("devices")
 router = APIRouter(prefix="/api/v1/devices", tags=["devices"])
@@ -41,7 +42,9 @@ def register_device(
             platform=payload.platform,
         ))
     db.commit()
-    return {"status": "registered"}
+    # push_enabled tells the app whether the server actually sends FCM - if
+    # not, it keeps showing its own local notifications instead.
+    return {"status": "registered", "push_enabled": is_push_enabled()}
 
 
 @router.delete("/register")
