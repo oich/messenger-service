@@ -30,13 +30,11 @@ class SSEBroker:
         """True if the user currently has at least one open SSE connection
         of a client kind not in ignore_clients.
 
-        push_notifier.py skips the FCM push for users who are live at a
-        desktop/browser client. Connections from the Android app itself are
-        ignored there (ignore_clients=("android",)): Capacitor keeps the
-        WebView's SSE running while the app is backgrounded, so they say
-        nothing about whether the user actually sees the message - FCM
-        does not show a tray notification while the app is in the
-        foreground anyway.
+        Connections from the Android app are tagged client="android"
+        (?client=android on the stream): Capacitor keeps the WebView's SSE
+        running while the app is backgrounded, so they say nothing about
+        whether the user actually sees a message. (push_notifier.py no
+        longer gates on connections at all - FCM always goes out.)
         """
         ignored = set(ignore_clients)
         return any(

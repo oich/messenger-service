@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from app.config import FCM_ENABLED, FIREBASE_CREDENTIALS_JSON
 from app.models import DeviceToken, UserMapping
 from app.services.matrix_client import matrix_client, MatrixClientError
-from app.services.sse_broker import broker
 
 logger = logging.getLogger("push_notifier")
 
@@ -98,16 +97,12 @@ async def push_to_room_members(
         .filter(UserMapping.matrix_user_id.in_(member_matrix_ids), UserMapping.is_bot == False)
         .all()
     ]
-    # Members live at a desktop/browser client right now already got this
-    # message via SSE - only push to the rest. The Android app's own SSE
-    # connections do not count (they keep running in the background, see
-    # SSEBroker.is_connected); in the foreground FCM shows no tray
-    # notification anyway.
-    hub_user_ids = [
-        uid for uid in hub_user_ids if not broker.is_connected(uid, ignore_clients=("android",))
-    ]
-    if not hub_user_ids:
-        return
+    # Always push, even if the user is connected at a desktop/browser client
+    # right now: an open messenger tab on the office PC says nothing about
+    # where the user actually is (user decision 2026-10-29). No duplicate on
+    # the phone itself - Android shows no tray notification for FCM while
+    # the app is in the foreground, and the messenger page skips its own
+    # local notifications while push is active (window.api.isPushActive).
 
     tokens = [
         row.fcm_token
