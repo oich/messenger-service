@@ -4,6 +4,7 @@ services:
       - DATABASE_URL=${DATABASE_URL:-postgresql://messenger:messenger@db:5432/messenger}
       - SECRET_KEY=${SECRET_KEY:-messenger-dev-secret}
       - HUB_SECRET_KEY=${HUB_SECRET_KEY:-hub-dev-secret-change-me}
+      - HUB_JWT_ACCEPT_HS256=${HUB_JWT_ACCEPT_HS256:-true}
       # hub_sso.py::HUB_ROLE_MAP mappt terminal -> "user" (voller Zugriff),
       # "user" als Mindest-Rolle wuerde diese Nutzer aussperren.
       - HUB_MIN_ROLE=${HUB_MIN_ROLE:-terminal}

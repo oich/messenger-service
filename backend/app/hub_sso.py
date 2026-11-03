@@ -74,12 +74,9 @@ def validate_hub_token(token: str) -> Optional[dict]:
     if not HUB_SECRET_KEY:
         return None
     try:
-        payload = jwt.decode(
-            token,
-            HUB_SECRET_KEY,
-            algorithms=[HUB_ALGORITHM],
-            options={"verify_aud": False},
-        )
+        # RS256 (Hub JWKS) or HS256 during the transition - see hub_auth_kit
+        from hub_auth_kit import decode_hub_token
+        payload = decode_hub_token(token, HUB_SECRET_KEY)
     except JWTError as e:
         logger.debug("Hub token validation failed: %s", e)
         return None
