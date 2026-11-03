@@ -85,6 +85,11 @@ def validate_hub_token(token: str) -> Optional[dict]:
         return None
     if payload.get("iss") != "aesystek-hub":
         return None
+    # Only Hub access tokens (type "access") or service tokens (no type claim).
+    # A refresh token (7 days) or a pre_2fa token (password ok, TOTP pending)
+    # must never be accepted as a login.
+    if payload.get("type") not in (None, "access"):
+        return None
     username = payload.get("sub")
     if not username:
         return None
